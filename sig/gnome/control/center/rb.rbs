@@ -1,0 +1,12 @@
+module Gnome
+  module Control
+    module Center
+      module Rb
+        module Version
+          VERSION: String
+        end
+        VERSION: String
+      end
+    end
+  end
+end
