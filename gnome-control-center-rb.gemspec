@@ -96,6 +96,26 @@ Gem::Specification.new do |spec|
   spec.executables = ["gnome-control-center"]
   spec.require_paths = ["lib"]
 
+  # Runtime: the GTK4/Libadwaita toolkit this app is built on, and the
+  # GObject-Introspection binding gems fronting the system services each panel
+  # talks to (power, colour management, online accounts, devices, input
+  # methods, parental controls, privilege escalation, HTTP, disk management).
+  spec.add_dependency("gtk4")
+  spec.add_dependency("adwaita")
+  spec.add_dependency("glib2")
+  spec.add_dependency("colord")
+  spec.add_dependency("gcr-rb")
+  spec.add_dependency("gnome_desktop")
+  spec.add_dependency("goa-rb")
+  spec.add_dependency("gudev")
+  spec.add_dependency("ibus")
+  spec.add_dependency("libgtop")
+  spec.add_dependency("malcontent")
+  spec.add_dependency("polkit")
+  spec.add_dependency("soup3")
+  spec.add_dependency("udisks")
+  spec.add_dependency("upower-glib")
+
   # NOTE: It is preferable to list development dependencies in the gemspec due to increased
   #       visibility and discoverability.
   #       However, development dependencies in gemspec will install on
