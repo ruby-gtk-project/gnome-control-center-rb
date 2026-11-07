@@ -2,53 +2,54 @@
 
 require "gtk4"
 require "adwaita"
+require_relative "shell_model"
+require_relative "panel_loader"
+require_relative "window"
+require_relative "panels/about_panel"
 
 module GnomeControlCenter
-  # The port's application: one window, and a status page saying the port has
-  # not been written yet. Everything else grows from here — replace the status
-  # page with the real content, keep the shape.
+  # The port's application entry point.
+  #
+  # Ported from upstream's shell/cc-application.c and shell/main.c: create
+  # the GApplication, register the panels the shell knows about, and on
+  # "activate" build (or re-present) the one shell window.
   #
   # House style (see .claude/skills/ruby-gtk): every widget is a memoized
   # method, all configuration lives in its `tap`, assembly happens only in
   # `build`, and the launcher is one expression.
   class Application
     def build
+      register_panels
       app.tap do
         app.signal_connect("activate") do
-          window.tap do |win|
-            win.content = toolbar_view
-          end
-
-          toolbar_view.tap do |view|
-            view.add_top_bar(header_bar)
-            view.content = status_page
-          end
-
           window.present
         end
       end
     end
 
     # Adwaita::Application is broken in the Ruby bindings; the application
-    # object comes from Gtk and only the window is Adwaita.
+    # object comes from Gtk, and Adwaita::ApplicationWindow (composed with
+    # it, as here, rather than subclassed from it) still works.
     def app = @app ||= Gtk::Application.new("org.rubygtkproject.GnomeControlCenter", :default_flags)
 
-    def window
-      @window ||= Adwaita::ApplicationWindow.new(app).tap do |win|
-        win.title = "gnome-control-center"
-        win.set_default_size(800, 600)
-      end
-    end
+    def model = @model ||= ShellModel.new
 
-    def toolbar_view = @toolbar_view ||= Adwaita::ToolbarView.new
-    def header_bar = @header_bar ||= Adwaita::HeaderBar.new
+    def window = @window ||= Window.new(app, model).build
 
-    def status_page
-      @status_page ||= Adwaita::StatusPage.new.tap do |page|
-        page.title = "gnome-control-center"
-        page.description = "The Ruby port has not been written yet."
-        page.icon_name = "applications-engineering-symbolic"
+    private
+
+      # Upstream's cc_panel_loader.c PANEL_TYPES table. This round ports one
+      # panel; see the task notes for the rest.
+      def register_panels
+        PanelLoader.register(
+          "about",
+          category:    :details,
+          name:        "About",
+          description: "Hardware and software system information",
+          icon:        "dialog-information-symbolic",
+          keywords:    %w[About System Information Hardware Firmware Memory Processor OS Kernel],
+          panel_class: Panels::AboutPanel,
+        )
       end
-    end
   end
 end
