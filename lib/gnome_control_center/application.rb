@@ -2,6 +2,8 @@
 
 require "gtk4"
 require "adwaita"
+require_relative "log"
+require_relative "object_storage"
 require_relative "shell_model"
 require_relative "panel_loader"
 require_relative "window"
@@ -19,6 +21,8 @@ module GnomeControlCenter
   # `build`, and the launcher is one expression.
   class Application
     def build
+      Log.init
+      ObjectStorage.initialize_storage
       register_panels
       app.tap do
         app.signal_connect("activate") do
