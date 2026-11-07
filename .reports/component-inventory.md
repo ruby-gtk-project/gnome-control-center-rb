@@ -1,551 +1,593 @@
 # Upstream component inventory — gnome-control-center-rb
 
-Survey only. No application code was written in this step (per task instructions).
+Survey of upstream (`origin/main`, GNOME's gnome-control-center, aka "Settings")
+against this fork's `ruby` branch, for the full-parity port. No app code was
+written in this pass — this is the inventory only.
 
-Upstream: `origin/main` in this same repo (gnome-control-center, GNOME Settings).
-Port: this fork's `ruby` branch.
+## Method
 
-## State of the port
+- Upstream file list: `git ls-tree -r --name-only origin/main` (1309 entries).
+- Scoped to the files that build user-facing components, per the
+  `component-identification` skill: every `panels/**/*.{c,h,blp,ui}` outside
+  `tests/`/`icons/`, plus the shell chrome (`shell/`), the global-shortcuts
+  provider, GSettings schemas, GResource manifests, and the `po/` catalogue.
+  `meson.build`, `.desktop.in`, `appdata`/`metainfo`, man pages and CI files
+  are support/build plumbing, not components, and are left out of the table
+  rows (noted separately below).
+- **The join is per component, not per file**: a component's `.c`, `.h`,
+  `.blp`/`.ui` are unioned into one row, matching upstream's own
+  subclass+template split (see the skill's "unit the two sides can be joined
+  on" section). 282 such components exist under `panels/` alone.
+- `kind` is a first-pass label inferred from upstream's own naming convention
+  (`*-panel` → panel, `*dialog*` → dialog, `*-row` → row, `*-page` → page,
+  `*-view`/`*-editor` → view/editor, `*enum*` → enum, everything else →
+  support — helpers, models, backends, utility code with no widget tree of
+  its own). It scopes later `component-parity` work; it is not a
+  widget/CSS/signal-level identification (that is step 2, run one component
+  at a time per the skill, not for the whole app in one pass).
+- Proposed `lib/` path follows the pilot port's (`gnome-contacts-rb`)
+  convention — one upstream component to one `lib/<path>.rb`, `cc-` stripped,
+  dashes to underscores — and the existing `lib/panels/{common,sharing,sound}`
+  files already on `ruby` confirm the convention (e.g. `cc-ui-util.c` →
+  `lib/panels/common/ui_util.rb`, already present).
+- "exists" checks today's `ruby` branch tree for that exact path.
 
-This inventory was first written when `lib/` held only the gem skeleton
-(`lib/gnome_control_center.rb`, `lib/gnome_control_center/application.rb`,
-`lib/gnome/control/center/rb/version.rb`). Since then the shell has been
-ported:
+## Gem wiring check (pre-existing, re-verified this pass)
 
-```
-lib/gnome_control_center.rb
-lib/gnome_control_center/application.rb
-lib/gnome_control_center/window.rb
-lib/gnome_control_center/panel.rb
-lib/gnome_control_center/panel_list.rb
-lib/gnome_control_center/panel_loader.rb
-lib/gnome_control_center/shell_model.rb
-lib/gnome_control_center/system_info.rb
-lib/gnome_control_center/panels/about_panel.rb
-lib/gnome/control/center/rb/version.rb
-```
+`gudev` and `udisks` are declared in `gnome-control-center-rb.gemspec`,
+mirrored in `nix/Gemfile`/`nix/Gemfile.lock`/`nix/gemset.nix`, backed by
+`libgudev`/`udisks2` in `flake.nix`'s `gtkStack`, and both required and
+called for real (not behind a rescue or a stub) in
+`lib/gnome_control_center/system_info.rb` — `GUdev::Client#query_by_sysfs_path`
+for DMI vendor/model, `UDisks::ManagerProxy`/`UDisks::DriveProxy` for disk
+capacity. Re-verified live:
+`nix develop --command ruby -e 'require "gudev"; require "udisks"; puts GUdev.constants.size; puts UDisks.constants.size'`
+→ `10` / `138`. No regression found; nothing to fix.
 
-That covers the shell proper (window, base panel class, sidebar list, panel
-registry, the list model backing it) and one panel — About, rolled into the
-shell rather than treated as a page inside a not-yet-ported `system_panel`.
-`cc-object-storage.c/.h`, `cc-log.c/.h` and the shortcuts dialog inside
-`shell/` are not yet ported (see the `shell/` table below for the row-by-row
-state), and of the 24 panels, 23 still have zero files under `lib/` — every
-row for them below is still "No" under Exists. The two D-Bus service
-providers (search-provider, global-shortcuts-provider) are also still "No".
+# Component inventory: upstream gnome-control-center -> `ruby` port
 
-## Scope and method
+Generated from `git ls-tree -r --name-only origin/main`, grouped by component
+(each row unions a component's `.c`/`.h`/`.blp`/`.ui` files, per the
+`component-identification` skill's file-join rule). `kind` is inferred from
+upstream's naming convention (panel/dialog/row/page/view/editor/util/support);
+it is a first-pass label for scoping later `component-parity` work, not a
+widget-by-widget classification.
 
-Per the `component-identification` skill: the declarative-UI-first pass,
-file-level unit of comparison (one upstream `.c`/`.h` pair, often plus a
-`.blp` or `.ui` template, maps to one port file), and the GIR symbol table
-were used as the method. Given the size of this app (1309 upstream paths,
-24 panels), this is the **opening survey of a fresh fork**: a map of how much
-app is left, not a widget-by-widget signal/CSS breakdown. That detail belongs
-to the component-parity check done per unit when a panel is actually ported
-(see the skill: "pick a unit").
+Proposed `lib/` path follows the two conventions already visible on `ruby`:
+a panel's top-level `Adw`-panel class (upstream `*-panel.c`, or the page/file
+that stands in for a panel not yet split out, e.g. `cc-about-page.c`) goes to
+`lib/gnome_control_center/panels/<name>_panel.rb`; everything else — rows,
+dialogs, views, backends, utilities — goes to `lib/panels/<panel>/<name>.rb`,
+matching `lib/panels/common/ui_util.rb`, `lib/panels/sharing/
+gsd_sharing_enums.rb` and `lib/panels/sound/sound_enums.rb`, all already
+on `ruby`.
 
-Totals: 24 panels, 278 distinct upstream component files (excluding build
-files, desktop launchers, D-Bus interface XML, policy files, and the
-po-timezones translation catalogue), plus the separate 10-row shell/
-table. As of this update: 1 of the 278 panel-scoped components ported
-(the About page, as its own panel rather than a page inside
-`cc-system-panel`), 5 of 10 shell rows ported (window, panel, panel_list,
-panel_loader, shell_model; cc-application.c/.h and shell/main.c partially
-via `application.rb`), the two D-Bus service providers still unported.
+## panels/applications (11 components)
 
-Kind legend: `panel` (top-level Adw view for one settings panel), `page`
-(a sub-view pushed inside a panel, usually via Adw.NavigationView), `dialog`,
-`row` (a list/action row), `window`, `chooser widget`, `editor widget`,
-`entry widget`, `group widget`, `model/item`, `model/device`, `model/config`,
-`manager/service`, `client/service`, `widget` (a freestanding visual
-control), `widget/helper` (non-widget C/Ruby support code — enums, utils,
-D-Bus proxies, parsers — that a ported panel will still need even though it
-draws nothing itself).
-
-Proposed `lib/` layout: `lib/panels/<panel>/<name>.rb`, one port file per
-upstream component (uniting its `.c`/`.h` and `.blp`/`.ui` into one Ruby
-class, per house style). This is a proposal for the next step to confirm,
-not yet acted on.
-
----
-
-## panels/applications/
-
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-application-shortcut-dialog.blp, cc-application-shortcut-dialog.c, cc-application-shortcut-dialog.h` | dialog | `lib/panels/applications/application_shortcut_dialog.rb` | No |
-| `cc-applications-panel.blp, cc-applications-panel.c, cc-applications-panel.h` | panel | `lib/panels/applications/applications_panel.rb` | No |
-| `cc-applications-row.blp, cc-applications-row.c, cc-applications-row.h` | row | `lib/panels/applications/applications_row.rb` | No |
-| `cc-default-apps-page.blp, cc-default-apps-page.c, cc-default-apps-page.h` | page | `lib/panels/applications/default_apps_page.rb` | No |
-| `cc-default-apps-row.c, cc-default-apps-row.h` | row | `lib/panels/applications/default_apps_row.rb` | No |
-| `cc-removable-media-settings.c, cc-removable-media-settings.h, cc-removable-media-settings.ui` | widget/helper | `lib/panels/applications/removable_media_settings.rb` | No |
-| `cc-snap-row.c, cc-snap-row.h, cc-snap-row.ui` | row | `lib/panels/applications/snap_row.rb` | No |
-| `cc-snapd-client.c, cc-snapd-client.h` | client/service | `lib/panels/applications/snapd_client.rb` | No |
-| `globs.c, globs.h` | widget/helper | `lib/panels/applications/globs.rb` | No |
-| `search.c, search.h` | widget/helper | `lib/panels/applications/search.rb` | No |
-| `utils.c, utils.h` | widget/helper | `lib/panels/applications/utils.rb` | No |
+| `panels/applications/cc-application-shortcut-dialog.blp, panels/applications/cc-application-shortcut-dialog.c, panels/applications/cc-application-shortcut-dialog.h` | dialog | `lib/panels/applications/application_shortcut_dialog.rb` | no |
+| `panels/applications/cc-applications-panel.blp, panels/applications/cc-applications-panel.c, panels/applications/cc-applications-panel.h` | panel | `lib/gnome_control_center/panels/applications_panel.rb` | no |
+| `panels/applications/cc-applications-row.blp, panels/applications/cc-applications-row.c, panels/applications/cc-applications-row.h` | row | `lib/panels/applications/applications_row.rb` | no |
+| `panels/applications/cc-default-apps-page.blp, panels/applications/cc-default-apps-page.c, panels/applications/cc-default-apps-page.h` | page | `lib/panels/applications/default_apps_page.rb` | no |
+| `panels/applications/cc-default-apps-row.c, panels/applications/cc-default-apps-row.h` | row | `lib/panels/applications/default_apps_row.rb` | no |
+| `panels/applications/cc-removable-media-settings.c, panels/applications/cc-removable-media-settings.h, panels/applications/cc-removable-media-settings.ui` | support | `lib/panels/applications/removable_media_settings.rb` | no |
+| `panels/applications/cc-snap-row.c, panels/applications/cc-snap-row.h, panels/applications/cc-snap-row.ui` | row | `lib/panels/applications/snap_row.rb` | no |
+| `panels/applications/cc-snapd-client.c, panels/applications/cc-snapd-client.h` | support | `lib/panels/applications/snapd_client.rb` | no |
+| `panels/applications/globs.c, panels/applications/globs.h` | support | `lib/panels/applications/globs.rb` | no |
+| `panels/applications/search.c, panels/applications/search.h` | support | `lib/panels/applications/search.rb` | no |
+| `panels/applications/utils.c, panels/applications/utils.h` | support | `lib/panels/applications/utils.rb` | no |
 
-## panels/background/
+## panels/background (9 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `bg-recent-source.c, bg-recent-source.h` | widget/helper | `lib/panels/background/bg_recent_source.rb` | No |
-| `bg-source.c, bg-source.h` | widget/helper | `lib/panels/background/bg_source.rb` | No |
-| `bg-wallpapers-source.c, bg-wallpapers-source.h` | widget/helper | `lib/panels/background/bg_wallpapers_source.rb` | No |
-| `cc-background-chooser.blp, cc-background-chooser.c, cc-background-chooser.h` | chooser widget | `lib/panels/background/background_chooser.rb` | No |
-| `cc-background-item.c, cc-background-item.h` | model/item | `lib/panels/background/background_item.rb` | No |
-| `cc-background-paintable.c, cc-background-paintable.h` | widget/helper | `lib/panels/background/background_paintable.rb` | No |
-| `cc-background-panel.blp, cc-background-panel.c, cc-background-panel.h` | panel | `lib/panels/background/background_panel.rb` | No |
-| `cc-background-preview.blp, cc-background-preview.c, cc-background-preview.h` | widget/helper | `lib/panels/background/background_preview.rb` | No |
-| `cc-background-xml.c, cc-background-xml.h` | widget/helper | `lib/panels/background/background_xml.rb` | No |
+| `panels/background/bg-recent-source.c, panels/background/bg-recent-source.h` | support | `lib/panels/background/bg_recent_source.rb` | no |
+| `panels/background/bg-source.c, panels/background/bg-source.h` | support | `lib/panels/background/bg_source.rb` | no |
+| `panels/background/bg-wallpapers-source.c, panels/background/bg-wallpapers-source.h` | support | `lib/panels/background/bg_wallpapers_source.rb` | no |
+| `panels/background/cc-background-chooser.blp, panels/background/cc-background-chooser.c, panels/background/cc-background-chooser.h` | support | `lib/panels/background/background_chooser.rb` | no |
+| `panels/background/cc-background-item.c, panels/background/cc-background-item.h` | support | `lib/panels/background/background_item.rb` | no |
+| `panels/background/cc-background-paintable.c, panels/background/cc-background-paintable.h` | support | `lib/panels/background/background_paintable.rb` | no |
+| `panels/background/cc-background-panel.blp, panels/background/cc-background-panel.c, panels/background/cc-background-panel.h` | panel | `lib/gnome_control_center/panels/background_panel.rb` | no |
+| `panels/background/cc-background-preview.blp, panels/background/cc-background-preview.c, panels/background/cc-background-preview.h` | support | `lib/panels/background/background_preview.rb` | no |
+| `panels/background/cc-background-xml.c, panels/background/cc-background-xml.h` | support | `lib/panels/background/background_xml.rb` | no |
 
-## panels/bluetooth/
+## panels/bluetooth (1 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-bluetooth-panel.blp, cc-bluetooth-panel.c, cc-bluetooth-panel.h` | panel | `lib/panels/bluetooth/bluetooth_panel.rb` | No |
+| `panels/bluetooth/cc-bluetooth-panel.blp, panels/bluetooth/cc-bluetooth-panel.c, panels/bluetooth/cc-bluetooth-panel.h` | panel | `lib/gnome_control_center/panels/bluetooth_panel.rb` | no |
 
-## panels/color/
+## panels/color (6 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-color-calibrate.blp, cc-color-calibrate.c, cc-color-calibrate.h` | widget/helper | `lib/panels/color/color_calibrate.rb` | No |
-| `cc-color-cell-renderer-text.c, cc-color-cell-renderer-text.h` | widget/helper | `lib/panels/color/color_cell_renderer_text.rb` | No |
-| `cc-color-common.c, cc-color-common.h` | widget/helper | `lib/panels/color/color_common.rb` | No |
-| `cc-color-device.blp, cc-color-device.c, cc-color-device.h` | model/device | `lib/panels/color/color_device.rb` | No |
-| `cc-color-panel.c, cc-color-panel.h, cc-color-panel.ui` | panel | `lib/panels/color/color_panel.rb` | No |
-| `cc-color-profile.blp, cc-color-profile.c, cc-color-profile.h` | widget/helper | `lib/panels/color/color_profile.rb` | No |
+| `panels/color/cc-color-calibrate.blp, panels/color/cc-color-calibrate.c, panels/color/cc-color-calibrate.h` | support | `lib/panels/color/color_calibrate.rb` | no |
+| `panels/color/cc-color-cell-renderer-text.c, panels/color/cc-color-cell-renderer-text.h` | support | `lib/panels/color/color_cell_renderer_text.rb` | no |
+| `panels/color/cc-color-common.c, panels/color/cc-color-common.h` | support | `lib/panels/color/color_common.rb` | no |
+| `panels/color/cc-color-device.blp, panels/color/cc-color-device.c, panels/color/cc-color-device.h` | support | `lib/panels/color/color_device.rb` | no |
+| `panels/color/cc-color-panel.c, panels/color/cc-color-panel.h, panels/color/cc-color-panel.ui` | panel | `lib/gnome_control_center/panels/color_panel.rb` | no |
+| `panels/color/cc-color-profile.blp, panels/color/cc-color-profile.c, panels/color/cc-color-profile.h` | support | `lib/panels/color/color_profile.rb` | no |
 
-## panels/common/
+## panels/common (26 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-common-language.c, cc-common-language.h` | widget/helper | `lib/panels/common/common_language.rb` | No |
-| `cc-content-row.blp, cc-content-row.c, cc-content-row.h` | row | `lib/panels/common/content_row.rb` | No |
-| `cc-duration-editor.blp, cc-duration-editor.c, cc-duration-editor.h` | editor widget | `lib/panels/common/duration_editor.rb` | No |
-| `cc-duration-row.blp, cc-duration-row.c, cc-duration-row.h` | row | `lib/panels/common/duration_row.rb` | No |
-| `cc-hostname-entry.c, cc-hostname-entry.h` | entry widget | `lib/panels/common/hostname_entry.rb` | No |
-| `cc-hostname.c, cc-hostname.h` | widget/helper | `lib/panels/common/hostname.rb` | No |
-| `cc-illustrated-row.blp, cc-illustrated-row.c, cc-illustrated-row.h` | row | `lib/panels/common/illustrated_row.rb` | No |
-| `cc-language-chooser.blp, cc-language-chooser.c, cc-language-chooser.h` | chooser widget | `lib/panels/common/language_chooser.rb` | No |
-| `cc-language-row.blp, cc-language-row.c, cc-language-row.h` | row | `lib/panels/common/language_row.rb` | No |
-| `cc-list-row-info-button.blp, cc-list-row-info-button.c, cc-list-row-info-button.h` | widget | `lib/panels/common/list_row_info_button.rb` | No |
-| `cc-list-row.blp, cc-list-row.c, cc-list-row.h` | row | `lib/panels/common/list_row.rb` | No |
-| `cc-mask-paintable.c, cc-mask-paintable.h` | widget/helper | `lib/panels/common/mask_paintable.rb` | No |
-| `cc-number-row.c, cc-number-row.h` | row | `lib/panels/common/number_row.rb` | No |
-| `cc-permission-infobar.blp, cc-permission-infobar.c, cc-permission-infobar.h` | widget/helper | `lib/panels/common/permission_infobar.rb` | No |
-| `cc-scaler.c, cc-scaler.h` | widget/helper | `lib/panels/common/scaler.rb` | No |
-| `cc-split-row.blp, cc-split-row.c, cc-split-row.h` | row | `lib/panels/common/split_row.rb` | No |
-| `cc-texture-utils.c, cc-texture-utils.h` | widget/helper | `lib/panels/common/texture_utils.rb` | No |
-| `cc-time-editor.blp, cc-time-editor.c, cc-time-editor.h` | editor widget | `lib/panels/common/time_editor.rb` | No |
-| `cc-timelike-editor-layout.c, cc-timelike-editor-layout.h` | widget/helper | `lib/panels/common/timelike_editor_layout.rb` | No |
-| `cc-timelike-editor.blp, cc-timelike-editor.c, cc-timelike-editor.h` | editor widget | `lib/panels/common/timelike_editor.rb` | No |
-| `cc-timelike-entry.c, cc-timelike-entry.h` | entry widget | `lib/panels/common/timelike_entry.rb` | No |
-| `cc-ui-util.c, cc-ui-util.h` | widget/helper | `lib/panels/common/ui_util.rb` | No |
-| `cc-util.c, cc-util.h` | widget/helper | `lib/panels/common/util.rb` | No |
-| `gsd-device-manager.c, gsd-device-manager.h` | manager/service | `lib/panels/common/gsd_device_manager.rb` | No |
-| `gsd-input-helper.c, gsd-input-helper.h` | widget/helper | `lib/panels/common/gsd_input_helper.rb` | No |
-| `hostname-helper.c, hostname-helper.h` | widget/helper | `lib/panels/common/hostname_helper.rb` | No |
+| `panels/common/cc-common-language.c, panels/common/cc-common-language.h` | support | `lib/panels/common/common_language.rb` | no |
+| `panels/common/cc-content-row.blp, panels/common/cc-content-row.c, panels/common/cc-content-row.h` | row | `lib/panels/common/content_row.rb` | no |
+| `panels/common/cc-duration-editor.blp, panels/common/cc-duration-editor.c, panels/common/cc-duration-editor.h` | editor | `lib/panels/common/duration_editor.rb` | no |
+| `panels/common/cc-duration-row.blp, panels/common/cc-duration-row.c, panels/common/cc-duration-row.h` | row | `lib/panels/common/duration_row.rb` | no |
+| `panels/common/cc-hostname.c, panels/common/cc-hostname.h` | support | `lib/panels/common/hostname.rb` | no |
+| `panels/common/cc-hostname-entry.c, panels/common/cc-hostname-entry.h` | support | `lib/panels/common/hostname_entry.rb` | no |
+| `panels/common/cc-illustrated-row.blp, panels/common/cc-illustrated-row.c, panels/common/cc-illustrated-row.h` | row | `lib/panels/common/illustrated_row.rb` | no |
+| `panels/common/cc-language-chooser.blp, panels/common/cc-language-chooser.c, panels/common/cc-language-chooser.h` | support | `lib/panels/common/language_chooser.rb` | no |
+| `panels/common/cc-language-row.blp, panels/common/cc-language-row.c, panels/common/cc-language-row.h` | row | `lib/panels/common/language_row.rb` | no |
+| `panels/common/cc-list-row.blp, panels/common/cc-list-row.c, panels/common/cc-list-row.h` | row | `lib/panels/common/list_row.rb` | no |
+| `panels/common/cc-list-row-info-button.blp, panels/common/cc-list-row-info-button.c, panels/common/cc-list-row-info-button.h` | widget | `lib/panels/common/list_row_info_button.rb` | no |
+| `panels/common/cc-mask-paintable.c, panels/common/cc-mask-paintable.h` | support | `lib/panels/common/mask_paintable.rb` | no |
+| `panels/common/cc-number-row.c, panels/common/cc-number-row.h` | row | `lib/panels/common/number_row.rb` | no |
+| `panels/common/cc-permission-infobar.blp, panels/common/cc-permission-infobar.c, panels/common/cc-permission-infobar.h` | support | `lib/panels/common/permission_infobar.rb` | no |
+| `panels/common/cc-scaler.c, panels/common/cc-scaler.h` | support | `lib/panels/common/scaler.rb` | no |
+| `panels/common/cc-split-row.blp, panels/common/cc-split-row.c, panels/common/cc-split-row.h` | row | `lib/panels/common/split_row.rb` | no |
+| `panels/common/cc-texture-utils.c, panels/common/cc-texture-utils.h` | util | `lib/panels/common/texture_utils.rb` | no |
+| `panels/common/cc-time-editor.blp, panels/common/cc-time-editor.c, panels/common/cc-time-editor.h` | editor | `lib/panels/common/time_editor.rb` | no |
+| `panels/common/cc-timelike-editor.blp, panels/common/cc-timelike-editor.c, panels/common/cc-timelike-editor.h` | editor | `lib/panels/common/timelike_editor.rb` | no |
+| `panels/common/cc-timelike-editor-layout.c, panels/common/cc-timelike-editor-layout.h` | support | `lib/panels/common/timelike_editor_layout.rb` | no |
+| `panels/common/cc-timelike-entry.c, panels/common/cc-timelike-entry.h` | support | `lib/panels/common/timelike_entry.rb` | no |
+| `panels/common/cc-ui-util.c, panels/common/cc-ui-util.h` | util | `lib/panels/common/ui_util.rb` | yes |
+| `panels/common/cc-util.c, panels/common/cc-util.h` | util | `lib/panels/common/util.rb` | yes |
+| `panels/common/gsd-device-manager.c, panels/common/gsd-device-manager.h` | support | `lib/panels/common/gsd_device_manager.rb` | no |
+| `panels/common/gsd-input-helper.c, panels/common/gsd-input-helper.h` | util | `lib/panels/common/gsd_input_helper.rb` | no |
+| `panels/common/hostname-helper.c, panels/common/hostname-helper.h` | util | `lib/panels/common/hostname_helper.rb` | no |
 
-## panels/display/
+## panels/display (6 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-display-arrangement.c, cc-display-arrangement.h` | widget/helper | `lib/panels/display/display_arrangement.rb` | No |
-| `cc-display-config-manager.c, cc-display-config-manager.h` | manager/service | `lib/panels/display/display_config_manager.rb` | No |
-| `cc-display-config.c, cc-display-config.h` | model/config | `lib/panels/display/display_config.rb` | No |
-| `cc-display-panel.blp, cc-display-panel.c, cc-display-panel.h` | panel | `lib/panels/display/display_panel.rb` | No |
-| `cc-display-settings.blp, cc-display-settings.c, cc-display-settings.h` | widget/helper | `lib/panels/display/display_settings.rb` | No |
-| `cc-night-light-page.blp, cc-night-light-page.c, cc-night-light-page.h` | page | `lib/panels/display/night_light_page.rb` | No |
+| `panels/display/cc-display-arrangement.c, panels/display/cc-display-arrangement.h` | support | `lib/panels/display/display_arrangement.rb` | no |
+| `panels/display/cc-display-config.c, panels/display/cc-display-config.h` | support | `lib/panels/display/display_config.rb` | no |
+| `panels/display/cc-display-config-manager.c, panels/display/cc-display-config-manager.h` | support | `lib/panels/display/display_config_manager.rb` | no |
+| `panels/display/cc-display-panel.blp, panels/display/cc-display-panel.c, panels/display/cc-display-panel.h` | panel | `lib/gnome_control_center/panels/display_panel.rb` | no |
+| `panels/display/cc-display-settings.blp, panels/display/cc-display-settings.c, panels/display/cc-display-settings.h` | support | `lib/panels/display/display_settings.rb` | no |
+| `panels/display/cc-night-light-page.blp, panels/display/cc-night-light-page.c, panels/display/cc-night-light-page.h` | page | `lib/panels/display/night_light_page.rb` | no |
 
-## panels/keyboard/
+## panels/keyboard (16 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-ibus-utils.c, cc-ibus-utils.h` | widget/helper | `lib/panels/keyboard/ibus_utils.rb` | No |
-| `cc-input-chooser.blp, cc-input-chooser.c, cc-input-chooser.h` | chooser widget | `lib/panels/keyboard/input_chooser.rb` | No |
-| `cc-input-list-box.blp, cc-input-list-box.c, cc-input-list-box.h` | widget/helper | `lib/panels/keyboard/input_list_box.rb` | No |
-| `cc-input-row.blp, cc-input-row.c, cc-input-row.h` | row | `lib/panels/keyboard/input_row.rb` | No |
-| `cc-input-source-ibus.c, cc-input-source-ibus.h` | widget/helper | `lib/panels/keyboard/input_source_ibus.rb` | No |
-| `cc-input-source-xkb.c, cc-input-source-xkb.h` | widget/helper | `lib/panels/keyboard/input_source_xkb.rb` | No |
-| `cc-input-source.c, cc-input-source.h` | widget/helper | `lib/panels/keyboard/input_source.rb` | No |
-| `cc-keyboard-item.c, cc-keyboard-item.h` | model/item | `lib/panels/keyboard/keyboard_item.rb` | No |
-| `cc-keyboard-manager.c, cc-keyboard-manager.h` | manager/service | `lib/panels/keyboard/keyboard_manager.rb` | No |
-| `cc-keyboard-panel.blp, cc-keyboard-panel.c, cc-keyboard-panel.h` | panel | `lib/panels/keyboard/keyboard_panel.rb` | No |
-| `cc-keyboard-shortcut-editor.blp, cc-keyboard-shortcut-editor.c, cc-keyboard-shortcut-editor.h` | editor widget | `lib/panels/keyboard/keyboard_shortcut_editor.rb` | No |
-| `cc-keyboard-shortcut-group.blp, cc-keyboard-shortcut-group.c, cc-keyboard-shortcut-group.h` | group widget | `lib/panels/keyboard/keyboard_shortcut_group.rb` | No |
-| `cc-keyboard-shortcut-page.blp, cc-keyboard-shortcut-page.c, cc-keyboard-shortcut-page.h` | page | `lib/panels/keyboard/keyboard_shortcut_page.rb` | No |
-| `cc-keyboard-shortcut-row.blp, cc-keyboard-shortcut-row.c, cc-keyboard-shortcut-row.h` | row | `lib/panels/keyboard/keyboard_shortcut_row.rb` | No |
-| `cc-xkb-modifier-page.blp, cc-xkb-modifier-page.c, cc-xkb-modifier-page.h` | page | `lib/panels/keyboard/xkb_modifier_page.rb` | No |
-| `keyboard-shortcuts.c, keyboard-shortcuts.h` | widget/helper | `lib/panels/keyboard/keyboard_shortcuts.rb` | No |
+| `panels/keyboard/cc-ibus-utils.c, panels/keyboard/cc-ibus-utils.h` | util | `lib/panels/keyboard/ibus_utils.rb` | no |
+| `panels/keyboard/cc-input-chooser.blp, panels/keyboard/cc-input-chooser.c, panels/keyboard/cc-input-chooser.h` | support | `lib/panels/keyboard/input_chooser.rb` | no |
+| `panels/keyboard/cc-input-list-box.blp, panels/keyboard/cc-input-list-box.c, panels/keyboard/cc-input-list-box.h` | list | `lib/panels/keyboard/input_list_box.rb` | no |
+| `panels/keyboard/cc-input-row.blp, panels/keyboard/cc-input-row.c, panels/keyboard/cc-input-row.h` | row | `lib/panels/keyboard/input_row.rb` | no |
+| `panels/keyboard/cc-input-source.c, panels/keyboard/cc-input-source.h` | support | `lib/panels/keyboard/input_source.rb` | no |
+| `panels/keyboard/cc-input-source-ibus.c, panels/keyboard/cc-input-source-ibus.h` | support | `lib/panels/keyboard/input_source_ibus.rb` | no |
+| `panels/keyboard/cc-input-source-xkb.c, panels/keyboard/cc-input-source-xkb.h` | support | `lib/panels/keyboard/input_source_xkb.rb` | no |
+| `panels/keyboard/cc-keyboard-item.c, panels/keyboard/cc-keyboard-item.h` | support | `lib/panels/keyboard/keyboard_item.rb` | no |
+| `panels/keyboard/cc-keyboard-manager.c, panels/keyboard/cc-keyboard-manager.h` | support | `lib/panels/keyboard/keyboard_manager.rb` | no |
+| `panels/keyboard/cc-keyboard-panel.blp, panels/keyboard/cc-keyboard-panel.c, panels/keyboard/cc-keyboard-panel.h` | panel | `lib/gnome_control_center/panels/keyboard_panel.rb` | no |
+| `panels/keyboard/cc-keyboard-shortcut-editor.blp, panels/keyboard/cc-keyboard-shortcut-editor.c, panels/keyboard/cc-keyboard-shortcut-editor.h` | editor | `lib/panels/keyboard/keyboard_shortcut_editor.rb` | no |
+| `panels/keyboard/cc-keyboard-shortcut-group.blp, panels/keyboard/cc-keyboard-shortcut-group.c, panels/keyboard/cc-keyboard-shortcut-group.h` | support | `lib/panels/keyboard/keyboard_shortcut_group.rb` | no |
+| `panels/keyboard/cc-keyboard-shortcut-page.blp, panels/keyboard/cc-keyboard-shortcut-page.c, panels/keyboard/cc-keyboard-shortcut-page.h` | page | `lib/panels/keyboard/keyboard_shortcut_page.rb` | no |
+| `panels/keyboard/cc-keyboard-shortcut-row.blp, panels/keyboard/cc-keyboard-shortcut-row.c, panels/keyboard/cc-keyboard-shortcut-row.h` | row | `lib/panels/keyboard/keyboard_shortcut_row.rb` | no |
+| `panels/keyboard/cc-xkb-modifier-page.blp, panels/keyboard/cc-xkb-modifier-page.c, panels/keyboard/cc-xkb-modifier-page.h` | page | `lib/panels/keyboard/xkb_modifier_page.rb` | no |
+| `panels/keyboard/keyboard-shortcuts.c, panels/keyboard/keyboard-shortcuts.h` | support | `lib/panels/keyboard/keyboard_shortcuts.rb` | no |
 
-## panels/mouse/
+## panels/mouse (3 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-mouse-panel.blp, cc-mouse-panel.c, cc-mouse-panel.h` | panel | `lib/panels/mouse/mouse_panel.rb` | No |
-| `cc-mouse-test.blp, cc-mouse-test.c, cc-mouse-test.h` | widget/helper | `lib/panels/mouse/mouse_test.rb` | No |
+| `panels/mouse/cc-mouse-panel.blp, panels/mouse/cc-mouse-panel.c, panels/mouse/cc-mouse-panel.h` | panel | `lib/gnome_control_center/panels/mouse_panel.rb` | no |
+| `panels/mouse/cc-mouse-test.blp, panels/mouse/cc-mouse-test.c, panels/mouse/cc-mouse-test.h` | support | `lib/panels/mouse/mouse_test.rb` | no |
+| `panels/mouse/test-gnome-mouse-test.c` | support | `lib/panels/mouse/test_gnome_mouse_test.rb` | no |
 
-## panels/multitasking/
+## panels/multitasking (1 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-multitasking-panel.blp, cc-multitasking-panel.c, cc-multitasking-panel.h` | panel | `lib/panels/multitasking/multitasking_panel.rb` | No |
+| `panels/multitasking/cc-multitasking-panel.blp, panels/multitasking/cc-multitasking-panel.c, panels/multitasking/cc-multitasking-panel.h` | panel | `lib/gnome_control_center/panels/multitasking_panel.rb` | no |
 
-## panels/network/
+## panels/network (48 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-net-proxy-page.blp, cc-net-proxy-page.c, cc-net-proxy-page.h` | page | `lib/panels/network/net_proxy_page.rb` | No |
-| `cc-network-panel.blp, cc-network-panel.c, cc-network-panel.h` | panel | `lib/panels/network/network_panel.rb` | No |
-| `cc-qr-code-dialog.blp, cc-qr-code-dialog.c, cc-qr-code-dialog.h` | dialog | `lib/panels/network/qr_code_dialog.rb` | No |
-| `cc-qr-code.c, cc-qr-code.h` | widget/helper | `lib/panels/network/qr_code.rb` | No |
-| `cc-wifi-connection-list.c, cc-wifi-connection-list.h` | widget/helper | `lib/panels/network/wifi_connection_list.rb` | No |
-| `cc-wifi-connection-row.blp, cc-wifi-connection-row.c, cc-wifi-connection-row.h` | row | `lib/panels/network/wifi_connection_row.rb` | No |
-| `cc-wifi-hotspot-dialog.blp, cc-wifi-hotspot-dialog.c, cc-wifi-hotspot-dialog.h` | dialog | `lib/panels/network/wifi_hotspot_dialog.rb` | No |
-| `cc-wifi-panel.blp, cc-wifi-panel.c, cc-wifi-panel.h` | panel | `lib/panels/network/wifi_panel.rb` | No |
-| `connection-editor/8021x-security-page.blp` | page | `lib/panels/network/connection_editor_8021x_security_page.rb` | No |
-| `connection-editor/bluetooth-page.blp` | page | `lib/panels/network/connection_editor_bluetooth_page.rb` | No |
-| `connection-editor/ce-ip-address-entry.c, connection-editor/ce-ip-address-entry.h` | entry widget | `lib/panels/network/connection_editor_ce_ip_address_entry.rb` | No |
-| `connection-editor/ce-netmask-entry.c, connection-editor/ce-netmask-entry.h` | entry widget | `lib/panels/network/connection_editor_ce_netmask_entry.rb` | No |
-| `connection-editor/ce-page-8021x-security.c, connection-editor/ce-page-8021x-security.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_8021x_security.rb` | No |
-| `connection-editor/ce-page-bluetooth.c, connection-editor/ce-page-bluetooth.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_bluetooth.rb` | No |
-| `connection-editor/ce-page-details.c, connection-editor/ce-page-details.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_details.rb` | No |
-| `connection-editor/ce-page-ethernet.c, connection-editor/ce-page-ethernet.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_ethernet.rb` | No |
-| `connection-editor/ce-page-ip4.c, connection-editor/ce-page-ip4.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_ip4.rb` | No |
-| `connection-editor/ce-page-ip6.c, connection-editor/ce-page-ip6.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_ip6.rb` | No |
-| `connection-editor/ce-page-security.c, connection-editor/ce-page-security.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_security.rb` | No |
-| `connection-editor/ce-page-vpn.c, connection-editor/ce-page-vpn.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_vpn.rb` | No |
-| `connection-editor/ce-page-wifi.c, connection-editor/ce-page-wifi.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_wifi.rb` | No |
-| `connection-editor/ce-page-wireguard.c, connection-editor/ce-page-wireguard.h` | widget/helper | `lib/panels/network/connection_editor_ce_page_wireguard.rb` | No |
-| `connection-editor/ce-page.c, connection-editor/ce-page.h` | page | `lib/panels/network/connection_editor_ce_page.rb` | No |
-| `connection-editor/connection-editor.blp` | editor widget | `lib/panels/network/connection_editor_connection_editor.rb` | No |
-| `connection-editor/details-page.blp` | page | `lib/panels/network/connection_editor_details_page.rb` | No |
-| `connection-editor/ethernet-page.blp` | page | `lib/panels/network/connection_editor_ethernet_page.rb` | No |
-| `connection-editor/ip4-page.blp` | page | `lib/panels/network/connection_editor_ip4_page.rb` | No |
-| `connection-editor/ip6-page.blp` | page | `lib/panels/network/connection_editor_ip6_page.rb` | No |
-| `connection-editor/net-connection-editor.c, connection-editor/net-connection-editor.h` | editor widget | `lib/panels/network/connection_editor_net_connection_editor.rb` | No |
-| `connection-editor/security-page.blp` | page | `lib/panels/network/connection_editor_security_page.rb` | No |
-| `connection-editor/vpn-helpers.c, connection-editor/vpn-helpers.h` | widget/helper | `lib/panels/network/connection_editor_vpn_helpers.rb` | No |
-| `connection-editor/vpn-page.blp` | page | `lib/panels/network/connection_editor_vpn_page.rb` | No |
-| `connection-editor/wifi-page.blp` | page | `lib/panels/network/connection_editor_wifi_page.rb` | No |
-| `connection-editor/wireguard-page.blp` | page | `lib/panels/network/connection_editor_wireguard_page.rb` | No |
-| `connection-editor/wireguard-peer.blp` | widget/helper | `lib/panels/network/connection_editor_wireguard_peer.rb` | No |
-| `net-device-bluetooth.c, net-device-bluetooth.h` | widget/helper | `lib/panels/network/net_device_bluetooth.rb` | No |
-| `net-device-ethernet.c, net-device-ethernet.h` | widget/helper | `lib/panels/network/net_device_ethernet.rb` | No |
-| `net-device-mobile.c, net-device-mobile.h` | widget/helper | `lib/panels/network/net_device_mobile.rb` | No |
-| `net-device-wifi.c, net-device-wifi.h` | widget/helper | `lib/panels/network/net_device_wifi.rb` | No |
-| `net-vpn.c, net-vpn.h` | widget/helper | `lib/panels/network/net_vpn.rb` | No |
-| `network-bluetooth.blp` | widget/helper | `lib/panels/network/network_bluetooth.rb` | No |
-| `network-dialogs.c, network-dialogs.h` | widget/helper | `lib/panels/network/network_dialogs.rb` | No |
-| `network-ethernet.blp` | widget/helper | `lib/panels/network/network_ethernet.rb` | No |
-| `network-mobile.ui` | widget/helper | `lib/panels/network/network_mobile.rb` | No |
-| `network-vpn.blp` | widget/helper | `lib/panels/network/network_vpn.rb` | No |
-| `network-wifi.blp` | widget/helper | `lib/panels/network/network_wifi.rb` | No |
-| `panel-common.c, panel-common.h` | widget/helper | `lib/panels/network/panel_common.rb` | No |
-| `ui-helpers.c, ui-helpers.h` | widget/helper | `lib/panels/network/ui_helpers.rb` | No |
+| `panels/network/cc-net-proxy-page.blp, panels/network/cc-net-proxy-page.c, panels/network/cc-net-proxy-page.h` | page | `lib/panels/network/net_proxy_page.rb` | no |
+| `panels/network/cc-network-panel.blp, panels/network/cc-network-panel.c, panels/network/cc-network-panel.h` | panel | `lib/gnome_control_center/panels/network_panel.rb` | no |
+| `panels/network/cc-qr-code.c, panels/network/cc-qr-code.h` | support | `lib/panels/network/qr_code.rb` | no |
+| `panels/network/cc-qr-code-dialog.blp, panels/network/cc-qr-code-dialog.c, panels/network/cc-qr-code-dialog.h` | dialog | `lib/panels/network/qr_code_dialog.rb` | no |
+| `panels/network/cc-wifi-connection-list.c, panels/network/cc-wifi-connection-list.h` | list | `lib/panels/network/wifi_connection_list.rb` | no |
+| `panels/network/cc-wifi-connection-row.blp, panels/network/cc-wifi-connection-row.c, panels/network/cc-wifi-connection-row.h` | row | `lib/panels/network/wifi_connection_row.rb` | no |
+| `panels/network/cc-wifi-hotspot-dialog.blp, panels/network/cc-wifi-hotspot-dialog.c, panels/network/cc-wifi-hotspot-dialog.h` | dialog | `lib/panels/network/wifi_hotspot_dialog.rb` | no |
+| `panels/network/cc-wifi-panel.blp, panels/network/cc-wifi-panel.c, panels/network/cc-wifi-panel.h` | panel | `lib/gnome_control_center/panels/wifi_panel.rb` | no |
+| `panels/network/connection-editor/8021x-security-page.blp` | page | `lib/panels/network/connection_editor/8021x_security_page.rb` | no |
+| `panels/network/connection-editor/bluetooth-page.blp` | page | `lib/panels/network/connection_editor/bluetooth_page.rb` | no |
+| `panels/network/connection-editor/ce-ip-address-entry.c, panels/network/connection-editor/ce-ip-address-entry.h` | support | `lib/panels/network/connection_editor/ce_ip_address_entry.rb` | no |
+| `panels/network/connection-editor/ce-netmask-entry.c, panels/network/connection-editor/ce-netmask-entry.h` | support | `lib/panels/network/connection_editor/ce_netmask_entry.rb` | no |
+| `panels/network/connection-editor/ce-page.c, panels/network/connection-editor/ce-page.h` | page | `lib/panels/network/connection_editor/ce_page.rb` | no |
+| `panels/network/connection-editor/ce-page-8021x-security.c, panels/network/connection-editor/ce-page-8021x-security.h` | support | `lib/panels/network/connection_editor/ce_page_8021x_security.rb` | no |
+| `panels/network/connection-editor/ce-page-bluetooth.c, panels/network/connection-editor/ce-page-bluetooth.h` | support | `lib/panels/network/connection_editor/ce_page_bluetooth.rb` | no |
+| `panels/network/connection-editor/ce-page-details.c, panels/network/connection-editor/ce-page-details.h` | support | `lib/panels/network/connection_editor/ce_page_details.rb` | no |
+| `panels/network/connection-editor/ce-page-ethernet.c, panels/network/connection-editor/ce-page-ethernet.h` | support | `lib/panels/network/connection_editor/ce_page_ethernet.rb` | no |
+| `panels/network/connection-editor/ce-page-ip4.c, panels/network/connection-editor/ce-page-ip4.h` | support | `lib/panels/network/connection_editor/ce_page_ip4.rb` | no |
+| `panels/network/connection-editor/ce-page-ip6.c, panels/network/connection-editor/ce-page-ip6.h` | support | `lib/panels/network/connection_editor/ce_page_ip6.rb` | no |
+| `panels/network/connection-editor/ce-page-security.c, panels/network/connection-editor/ce-page-security.h` | support | `lib/panels/network/connection_editor/ce_page_security.rb` | no |
+| `panels/network/connection-editor/ce-page-vpn.c, panels/network/connection-editor/ce-page-vpn.h` | support | `lib/panels/network/connection_editor/ce_page_vpn.rb` | no |
+| `panels/network/connection-editor/ce-page-wifi.c, panels/network/connection-editor/ce-page-wifi.h` | support | `lib/panels/network/connection_editor/ce_page_wifi.rb` | no |
+| `panels/network/connection-editor/ce-page-wireguard.c, panels/network/connection-editor/ce-page-wireguard.h` | support | `lib/panels/network/connection_editor/ce_page_wireguard.rb` | no |
+| `panels/network/connection-editor/connection-editor.blp` | editor | `lib/panels/network/connection_editor/connection_editor.rb` | no |
+| `panels/network/connection-editor/details-page.blp` | page | `lib/panels/network/connection_editor/details_page.rb` | no |
+| `panels/network/connection-editor/ethernet-page.blp` | page | `lib/panels/network/connection_editor/ethernet_page.rb` | no |
+| `panels/network/connection-editor/ip4-page.blp` | page | `lib/panels/network/connection_editor/ip4_page.rb` | no |
+| `panels/network/connection-editor/ip6-page.blp` | page | `lib/panels/network/connection_editor/ip6_page.rb` | no |
+| `panels/network/connection-editor/net-connection-editor.c, panels/network/connection-editor/net-connection-editor.h` | editor | `lib/panels/network/connection_editor/net_connection_editor.rb` | no |
+| `panels/network/connection-editor/security-page.blp` | page | `lib/panels/network/connection_editor/security_page.rb` | no |
+| `panels/network/connection-editor/vpn-helpers.c, panels/network/connection-editor/vpn-helpers.h` | support | `lib/panels/network/connection_editor/vpn_helpers.rb` | no |
+| `panels/network/connection-editor/vpn-page.blp` | page | `lib/panels/network/connection_editor/vpn_page.rb` | no |
+| `panels/network/connection-editor/wifi-page.blp` | page | `lib/panels/network/connection_editor/wifi_page.rb` | no |
+| `panels/network/connection-editor/wireguard-page.blp` | page | `lib/panels/network/connection_editor/wireguard_page.rb` | no |
+| `panels/network/connection-editor/wireguard-peer.blp` | support | `lib/panels/network/connection_editor/wireguard_peer.rb` | no |
+| `panels/network/net-device-bluetooth.c, panels/network/net-device-bluetooth.h` | support | `lib/panels/network/net_device_bluetooth.rb` | no |
+| `panels/network/net-device-ethernet.c, panels/network/net-device-ethernet.h` | support | `lib/panels/network/net_device_ethernet.rb` | no |
+| `panels/network/net-device-mobile.c, panels/network/net-device-mobile.h` | support | `lib/panels/network/net_device_mobile.rb` | no |
+| `panels/network/net-device-wifi.c, panels/network/net-device-wifi.h` | support | `lib/panels/network/net_device_wifi.rb` | no |
+| `panels/network/net-vpn.c, panels/network/net-vpn.h` | support | `lib/panels/network/net_vpn.rb` | no |
+| `panels/network/network-bluetooth.blp` | support | `lib/panels/network/network_bluetooth.rb` | no |
+| `panels/network/network-dialogs.c, panels/network/network-dialogs.h` | dialog | `lib/panels/network/network_dialogs.rb` | no |
+| `panels/network/network-ethernet.blp` | support | `lib/panels/network/network_ethernet.rb` | no |
+| `panels/network/network-mobile.ui` | support | `lib/panels/network/network_mobile.rb` | no |
+| `panels/network/network-vpn.blp` | support | `lib/panels/network/network_vpn.rb` | no |
+| `panels/network/network-wifi.blp` | support | `lib/panels/network/network_wifi.rb` | no |
+| `panels/network/panel-common.c, panels/network/panel-common.h` | support | `lib/panels/network/panel_common.rb` | no |
+| `panels/network/ui-helpers.c, panels/network/ui-helpers.h` | support | `lib/panels/network/ui_helpers.rb` | no |
 
-## panels/notifications/
+## panels/notifications (2 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-app-notifications-page.blp, cc-app-notifications-page.c, cc-app-notifications-page.h` | page | `lib/panels/notifications/app_notifications_page.rb` | No |
-| `cc-notifications-panel.blp, cc-notifications-panel.c, cc-notifications-panel.h` | panel | `lib/panels/notifications/notifications_panel.rb` | No |
+| `panels/notifications/cc-app-notifications-page.blp, panels/notifications/cc-app-notifications-page.c, panels/notifications/cc-app-notifications-page.h` | page | `lib/panels/notifications/app_notifications_page.rb` | no |
+| `panels/notifications/cc-notifications-panel.blp, panels/notifications/cc-notifications-panel.c, panels/notifications/cc-notifications-panel.h` | panel | `lib/gnome_control_center/panels/notifications_panel.rb` | no |
 
-## panels/online-accounts/
+## panels/online-accounts (3 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-online-account-provider-row.blp, cc-online-account-provider-row.c, cc-online-account-provider-row.h` | row | `lib/panels/online-accounts/online_account_provider_row.rb` | No |
-| `cc-online-account-row.blp, cc-online-account-row.c, cc-online-account-row.h` | row | `lib/panels/online-accounts/online_account_row.rb` | No |
-| `cc-online-accounts-panel.blp, cc-online-accounts-panel.c, cc-online-accounts-panel.h` | panel | `lib/panels/online-accounts/online_accounts_panel.rb` | No |
+| `panels/online-accounts/cc-online-account-provider-row.blp, panels/online-accounts/cc-online-account-provider-row.c, panels/online-accounts/cc-online-account-provider-row.h` | row | `lib/panels/online-accounts/online_account_provider_row.rb` | no |
+| `panels/online-accounts/cc-online-account-row.blp, panels/online-accounts/cc-online-account-row.c, panels/online-accounts/cc-online-account-row.h` | row | `lib/panels/online-accounts/online_account_row.rb` | no |
+| `panels/online-accounts/cc-online-accounts-panel.blp, panels/online-accounts/cc-online-accounts-panel.c, panels/online-accounts/cc-online-accounts-panel.h` | panel | `lib/gnome_control_center/panels/online_accounts_panel.rb` | no |
 
-## panels/power/
+## panels/power (4 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-battery-row.blp, cc-battery-row.c, cc-battery-row.h` | row | `lib/panels/power/battery_row.rb` | No |
-| `cc-power-panel.blp, cc-power-panel.c, cc-power-panel.h` | panel | `lib/panels/power/power_panel.rb` | No |
-| `cc-power-profile-info-row.blp, cc-power-profile-info-row.c, cc-power-profile-info-row.h` | row | `lib/panels/power/power_profile_info_row.rb` | No |
-| `cc-power-profile-row.blp, cc-power-profile-row.c, cc-power-profile-row.h` | row | `lib/panels/power/power_profile_row.rb` | No |
+| `panels/power/cc-battery-row.blp, panels/power/cc-battery-row.c, panels/power/cc-battery-row.h` | row | `lib/panels/power/battery_row.rb` | no |
+| `panels/power/cc-power-panel.blp, panels/power/cc-power-panel.c, panels/power/cc-power-panel.h` | panel | `lib/gnome_control_center/panels/power_panel.rb` | no |
+| `panels/power/cc-power-profile-info-row.blp, panels/power/cc-power-profile-info-row.c, panels/power/cc-power-profile-info-row.h` | row | `lib/panels/power/power_profile_info_row.rb` | no |
+| `panels/power/cc-power-profile-row.blp, panels/power/cc-power-profile-row.c, panels/power/cc-power-profile-row.h` | row | `lib/panels/power/power_profile_row.rb` | no |
 
-## panels/printers/
+## panels/printers (20 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-printers-panel.blp, cc-printers-panel.c, cc-printers-panel.h` | panel | `lib/panels/printers/printers_panel.rb` | No |
-| `pp-cups.c, pp-cups.h` | widget/helper | `lib/panels/printers/pp_cups.rb` | No |
-| `pp-details-dialog.blp, pp-details-dialog.c, pp-details-dialog.h` | dialog | `lib/panels/printers/pp_details_dialog.rb` | No |
-| `pp-host.c, pp-host.h` | widget/helper | `lib/panels/printers/pp_host.rb` | No |
-| `pp-ipp-option-widget.c, pp-ipp-option-widget.h` | widget/helper | `lib/panels/printers/pp_ipp_option_widget.rb` | No |
-| `pp-job-row.blp, pp-job-row.c, pp-job-row.h` | row | `lib/panels/printers/pp_job_row.rb` | No |
-| `pp-job.c, pp-job.h` | widget/helper | `lib/panels/printers/pp_job.rb` | No |
-| `pp-jobs-dialog.blp, pp-jobs-dialog.c, pp-jobs-dialog.h` | dialog | `lib/panels/printers/pp_jobs_dialog.rb` | No |
-| `pp-maintenance-command.c, pp-maintenance-command.h` | widget/helper | `lib/panels/printers/pp_maintenance_command.rb` | No |
-| `pp-new-printer-dialog.c, pp-new-printer-dialog.h, pp-new-printer-dialog.ui` | dialog | `lib/panels/printers/pp_new_printer_dialog.rb` | No |
-| `pp-new-printer.c, pp-new-printer.h` | widget/helper | `lib/panels/printers/pp_new_printer.rb` | No |
-| `pp-options-dialog.blp, pp-options-dialog.c, pp-options-dialog.h` | dialog | `lib/panels/printers/pp_options_dialog.rb` | No |
-| `pp-ppd-option-widget.c, pp-ppd-option-widget.h` | widget/helper | `lib/panels/printers/pp_ppd_option_widget.rb` | No |
-| `pp-ppd-selection-dialog.blp, pp-ppd-selection-dialog.c, pp-ppd-selection-dialog.h` | dialog | `lib/panels/printers/pp_ppd_selection_dialog.rb` | No |
-| `pp-print-device.c, pp-print-device.h` | model/device | `lib/panels/printers/pp_print_device.rb` | No |
-| `pp-printer-entry.blp, pp-printer-entry.c, pp-printer-entry.h` | entry widget | `lib/panels/printers/pp_printer_entry.rb` | No |
-| `pp-printer.c, pp-printer.h` | widget/helper | `lib/panels/printers/pp_printer.rb` | No |
-| `pp-samba-stub.c` | widget/helper | `lib/panels/printers/pp_samba_stub.rb` | No |
-| `pp-samba.c, pp-samba.h` | widget/helper | `lib/panels/printers/pp_samba.rb` | No |
-| `pp-utils.c, pp-utils.h` | widget/helper | `lib/panels/printers/pp_utils.rb` | No |
+| `panels/printers/cc-printers-panel.blp, panels/printers/cc-printers-panel.c, panels/printers/cc-printers-panel.h` | panel | `lib/gnome_control_center/panels/printers_panel.rb` | no |
+| `panels/printers/pp-cups.c, panels/printers/pp-cups.h` | support | `lib/panels/printers/pp_cups.rb` | no |
+| `panels/printers/pp-details-dialog.blp, panels/printers/pp-details-dialog.c, panels/printers/pp-details-dialog.h` | dialog | `lib/panels/printers/pp_details_dialog.rb` | no |
+| `panels/printers/pp-host.c, panels/printers/pp-host.h` | support | `lib/panels/printers/pp_host.rb` | no |
+| `panels/printers/pp-ipp-option-widget.c, panels/printers/pp-ipp-option-widget.h` | widget | `lib/panels/printers/pp_ipp_option_widget.rb` | no |
+| `panels/printers/pp-job.c, panels/printers/pp-job.h` | support | `lib/panels/printers/pp_job.rb` | no |
+| `panels/printers/pp-job-row.blp, panels/printers/pp-job-row.c, panels/printers/pp-job-row.h` | row | `lib/panels/printers/pp_job_row.rb` | no |
+| `panels/printers/pp-jobs-dialog.blp, panels/printers/pp-jobs-dialog.c, panels/printers/pp-jobs-dialog.h` | dialog | `lib/panels/printers/pp_jobs_dialog.rb` | no |
+| `panels/printers/pp-maintenance-command.c, panels/printers/pp-maintenance-command.h` | support | `lib/panels/printers/pp_maintenance_command.rb` | no |
+| `panels/printers/pp-new-printer.c, panels/printers/pp-new-printer.h` | support | `lib/panels/printers/pp_new_printer.rb` | no |
+| `panels/printers/pp-new-printer-dialog.c, panels/printers/pp-new-printer-dialog.h, panels/printers/pp-new-printer-dialog.ui` | dialog | `lib/panels/printers/pp_new_printer_dialog.rb` | no |
+| `panels/printers/pp-options-dialog.blp, panels/printers/pp-options-dialog.c, panels/printers/pp-options-dialog.h` | dialog | `lib/panels/printers/pp_options_dialog.rb` | no |
+| `panels/printers/pp-ppd-option-widget.c, panels/printers/pp-ppd-option-widget.h` | widget | `lib/panels/printers/pp_ppd_option_widget.rb` | no |
+| `panels/printers/pp-ppd-selection-dialog.blp, panels/printers/pp-ppd-selection-dialog.c, panels/printers/pp-ppd-selection-dialog.h` | dialog | `lib/panels/printers/pp_ppd_selection_dialog.rb` | no |
+| `panels/printers/pp-print-device.c, panels/printers/pp-print-device.h` | support | `lib/panels/printers/pp_print_device.rb` | no |
+| `panels/printers/pp-printer.c, panels/printers/pp-printer.h` | support | `lib/panels/printers/pp_printer.rb` | no |
+| `panels/printers/pp-printer-entry.blp, panels/printers/pp-printer-entry.c, panels/printers/pp-printer-entry.h` | support | `lib/panels/printers/pp_printer_entry.rb` | no |
+| `panels/printers/pp-samba.c, panels/printers/pp-samba.h` | support | `lib/panels/printers/pp_samba.rb` | no |
+| `panels/printers/pp-samba-stub.c` | support | `lib/panels/printers/pp_samba_stub.rb` | no |
+| `panels/printers/pp-utils.c, panels/printers/pp-utils.h` | util | `lib/panels/printers/pp_utils.rb` | no |
 
-## panels/privacy/
+## panels/privacy (22 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `bolt/bolt-client.c, bolt/bolt-client.h` | client/service | `lib/panels/privacy/bolt_bolt_client.rb` | No |
-| `bolt/bolt-device.c, bolt/bolt-device.h` | model/device | `lib/panels/privacy/bolt_bolt_device.rb` | No |
-| `bolt/bolt-enums.c, bolt/bolt-enums.h` | widget/helper | `lib/panels/privacy/bolt_bolt_enums.rb` | No |
-| `bolt/bolt-error.c, bolt/bolt-error.h` | widget/helper | `lib/panels/privacy/bolt_bolt_error.rb` | No |
-| `bolt/bolt-names.c, bolt/bolt-names.h` | widget/helper | `lib/panels/privacy/bolt_bolt_names.rb` | No |
-| `bolt/bolt-proxy.c, bolt/bolt-proxy.h` | widget/helper | `lib/panels/privacy/bolt_bolt_proxy.rb` | No |
-| `bolt/bolt-str.c, bolt/bolt-str.h` | widget/helper | `lib/panels/privacy/bolt_bolt_str.rb` | No |
-| `bolt/bolt-time.c, bolt/bolt-time.h` | widget/helper | `lib/panels/privacy/bolt_bolt_time.rb` | No |
-| `bolt/cc-bolt-device-dialog.blp, bolt/cc-bolt-device-dialog.c, bolt/cc-bolt-device-dialog.h` | dialog | `lib/panels/privacy/bolt_cc_bolt_device_dialog.rb` | No |
-| `bolt/cc-bolt-device-entry.blp, bolt/cc-bolt-device-entry.c, bolt/cc-bolt-device-entry.h` | entry widget | `lib/panels/privacy/bolt_cc_bolt_device_entry.rb` | No |
-| `bolt/cc-bolt-page.blp, bolt/cc-bolt-page.c, bolt/cc-bolt-page.h` | page | `lib/panels/privacy/bolt_cc_bolt_page.rb` | No |
-| `camera/cc-camera-page.blp, camera/cc-camera-page.c, camera/cc-camera-page.h` | page | `lib/panels/privacy/camera_cc_camera_page.rb` | No |
-| `cc-privacy-panel.blp, cc-privacy-panel.c, cc-privacy-panel.h` | panel | `lib/panels/privacy/privacy_panel.rb` | No |
-| `diagnostics/cc-diagnostics-page.blp, diagnostics/cc-diagnostics-page.c, diagnostics/cc-diagnostics-page.h` | page | `lib/panels/privacy/diagnostics_cc_diagnostics_page.rb` | No |
-| `firmware-security/cc-firmware-security-boot-dialog.blp, firmware-security/cc-firmware-security-boot-dialog.c, firmware-security/cc-firmware-security-boot-dialog.h` | dialog | `lib/panels/privacy/firmware_security_cc_firmware_security_boot_dialog.rb` | No |
-| `firmware-security/cc-firmware-security-dialog.blp, firmware-security/cc-firmware-security-dialog.c, firmware-security/cc-firmware-security-dialog.h` | dialog | `lib/panels/privacy/firmware_security_cc_firmware_security_dialog.rb` | No |
-| `firmware-security/cc-firmware-security-help-dialog.blp, firmware-security/cc-firmware-security-help-dialog.c, firmware-security/cc-firmware-security-help-dialog.h` | dialog | `lib/panels/privacy/firmware_security_cc_firmware_security_help_dialog.rb` | No |
-| `firmware-security/cc-firmware-security-page.blp, firmware-security/cc-firmware-security-page.c, firmware-security/cc-firmware-security-page.h` | page | `lib/panels/privacy/firmware_security_cc_firmware_security_page.rb` | No |
-| `firmware-security/cc-firmware-security-utils.c, firmware-security/cc-firmware-security-utils.h` | widget/helper | `lib/panels/privacy/firmware_security_cc_firmware_security_utils.rb` | No |
-| `location/cc-location-page.blp, location/cc-location-page.c, location/cc-location-page.h` | page | `lib/panels/privacy/location_cc_location_page.rb` | No |
-| `screen/cc-screen-page.blp, screen/cc-screen-page.c, screen/cc-screen-page.h` | page | `lib/panels/privacy/screen_cc_screen_page.rb` | No |
-| `usage/cc-usage-page.blp, usage/cc-usage-page.c, usage/cc-usage-page.h` | page | `lib/panels/privacy/usage_cc_usage_page.rb` | No |
+| `panels/privacy/bolt/bolt-client.c, panels/privacy/bolt/bolt-client.h` | support | `lib/panels/privacy/bolt/bolt_client.rb` | no |
+| `panels/privacy/bolt/bolt-device.c, panels/privacy/bolt/bolt-device.h` | support | `lib/panels/privacy/bolt/bolt_device.rb` | no |
+| `panels/privacy/bolt/bolt-enums.c, panels/privacy/bolt/bolt-enums.h` | enum | `lib/panels/privacy/bolt/bolt_enums.rb` | no |
+| `panels/privacy/bolt/bolt-error.c, panels/privacy/bolt/bolt-error.h` | support | `lib/panels/privacy/bolt/bolt_error.rb` | no |
+| `panels/privacy/bolt/bolt-names.c, panels/privacy/bolt/bolt-names.h` | support | `lib/panels/privacy/bolt/bolt_names.rb` | no |
+| `panels/privacy/bolt/bolt-proxy.c, panels/privacy/bolt/bolt-proxy.h` | support | `lib/panels/privacy/bolt/bolt_proxy.rb` | no |
+| `panels/privacy/bolt/bolt-str.c, panels/privacy/bolt/bolt-str.h` | support | `lib/panels/privacy/bolt/bolt_str.rb` | no |
+| `panels/privacy/bolt/bolt-time.c, panels/privacy/bolt/bolt-time.h` | support | `lib/panels/privacy/bolt/bolt_time.rb` | no |
+| `panels/privacy/bolt/cc-bolt-device-dialog.blp, panels/privacy/bolt/cc-bolt-device-dialog.c, panels/privacy/bolt/cc-bolt-device-dialog.h` | dialog | `lib/panels/privacy/bolt/bolt_device_dialog.rb` | no |
+| `panels/privacy/bolt/cc-bolt-device-entry.blp, panels/privacy/bolt/cc-bolt-device-entry.c, panels/privacy/bolt/cc-bolt-device-entry.h` | support | `lib/panels/privacy/bolt/bolt_device_entry.rb` | no |
+| `panels/privacy/bolt/cc-bolt-page.blp, panels/privacy/bolt/cc-bolt-page.c, panels/privacy/bolt/cc-bolt-page.h` | page | `lib/panels/privacy/bolt/bolt_page.rb` | no |
+| `panels/privacy/camera/cc-camera-page.blp, panels/privacy/camera/cc-camera-page.c, panels/privacy/camera/cc-camera-page.h` | page | `lib/panels/privacy/camera/camera_page.rb` | no |
+| `panels/privacy/cc-privacy-panel.blp, panels/privacy/cc-privacy-panel.c, panels/privacy/cc-privacy-panel.h` | panel | `lib/gnome_control_center/panels/privacy_panel.rb` | no |
+| `panels/privacy/diagnostics/cc-diagnostics-page.blp, panels/privacy/diagnostics/cc-diagnostics-page.c, panels/privacy/diagnostics/cc-diagnostics-page.h` | page | `lib/panels/privacy/diagnostics/diagnostics_page.rb` | no |
+| `panels/privacy/firmware-security/cc-firmware-security-boot-dialog.blp, panels/privacy/firmware-security/cc-firmware-security-boot-dialog.c, panels/privacy/firmware-security/cc-firmware-security-boot-dialog.h` | dialog | `lib/panels/privacy/firmware_security/firmware_security_boot_dialog.rb` | no |
+| `panels/privacy/firmware-security/cc-firmware-security-dialog.blp, panels/privacy/firmware-security/cc-firmware-security-dialog.c, panels/privacy/firmware-security/cc-firmware-security-dialog.h` | dialog | `lib/panels/privacy/firmware_security/firmware_security_dialog.rb` | no |
+| `panels/privacy/firmware-security/cc-firmware-security-help-dialog.blp, panels/privacy/firmware-security/cc-firmware-security-help-dialog.c, panels/privacy/firmware-security/cc-firmware-security-help-dialog.h` | dialog | `lib/panels/privacy/firmware_security/firmware_security_help_dialog.rb` | no |
+| `panels/privacy/firmware-security/cc-firmware-security-page.blp, panels/privacy/firmware-security/cc-firmware-security-page.c, panels/privacy/firmware-security/cc-firmware-security-page.h` | page | `lib/panels/privacy/firmware_security/firmware_security_page.rb` | no |
+| `panels/privacy/firmware-security/cc-firmware-security-utils.c, panels/privacy/firmware-security/cc-firmware-security-utils.h` | util | `lib/panels/privacy/firmware_security/firmware_security_utils.rb` | no |
+| `panels/privacy/location/cc-location-page.blp, panels/privacy/location/cc-location-page.c, panels/privacy/location/cc-location-page.h` | page | `lib/panels/privacy/location/location_page.rb` | no |
+| `panels/privacy/screen/cc-screen-page.blp, panels/privacy/screen/cc-screen-page.c, panels/privacy/screen/cc-screen-page.h` | page | `lib/panels/privacy/screen/screen_page.rb` | no |
+| `panels/privacy/usage/cc-usage-page.blp, panels/privacy/usage/cc-usage-page.c, panels/privacy/usage/cc-usage-page.h` | page | `lib/panels/privacy/usage/usage_page.rb` | no |
 
-## panels/search/
+## panels/search (3 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-search-locations-page.blp, cc-search-locations-page.c, cc-search-locations-page.h` | page | `lib/panels/search/search_locations_page.rb` | No |
-| `cc-search-panel-row.blp, cc-search-panel-row.c, cc-search-panel-row.h` | row | `lib/panels/search/search_panel_row.rb` | No |
-| `cc-search-panel.blp, cc-search-panel.c, cc-search-panel.h` | panel | `lib/panels/search/search_panel.rb` | No |
+| `panels/search/cc-search-locations-page.blp, panels/search/cc-search-locations-page.c, panels/search/cc-search-locations-page.h` | page | `lib/panels/search/search_locations_page.rb` | no |
+| `panels/search/cc-search-panel.blp, panels/search/cc-search-panel.c, panels/search/cc-search-panel.h` | panel | `lib/gnome_control_center/panels/search_panel.rb` | no |
+| `panels/search/cc-search-panel-row.blp, panels/search/cc-search-panel-row.c, panels/search/cc-search-panel-row.h` | row | `lib/panels/search/search_panel_row.rb` | no |
 
-## panels/sharing/
+## panels/sharing (5 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-media-sharing.c, cc-media-sharing.h` | widget/helper | `lib/panels/sharing/media_sharing.rb` | No |
-| `cc-sharing-networks.blp, cc-sharing-networks.c, cc-sharing-networks.h` | widget/helper | `lib/panels/sharing/sharing_networks.rb` | No |
-| `cc-sharing-panel.blp, cc-sharing-panel.c, cc-sharing-panel.h` | panel | `lib/panels/sharing/sharing_panel.rb` | No |
-| `file-share-properties.c, file-share-properties.h` | widget/helper | `lib/panels/sharing/file_share_properties.rb` | No |
-| `gsd-sharing-enums.h` | widget/helper | `lib/panels/sharing/gsd_sharing_enums.rb` | No |
+| `panels/sharing/cc-media-sharing.c, panels/sharing/cc-media-sharing.h` | support | `lib/panels/sharing/media_sharing.rb` | no |
+| `panels/sharing/cc-sharing-networks.blp, panels/sharing/cc-sharing-networks.c, panels/sharing/cc-sharing-networks.h` | support | `lib/panels/sharing/sharing_networks.rb` | no |
+| `panels/sharing/cc-sharing-panel.blp, panels/sharing/cc-sharing-panel.c, panels/sharing/cc-sharing-panel.h` | panel | `lib/gnome_control_center/panels/sharing_panel.rb` | no |
+| `panels/sharing/file-share-properties.c, panels/sharing/file-share-properties.h` | support | `lib/panels/sharing/file_share_properties.rb` | no |
+| `panels/sharing/gsd-sharing-enums.h` | enum | `lib/panels/sharing/gsd_sharing_enums.rb` | yes |
 
-## panels/sound/
+## panels/sound (15 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-alert-chooser-page.blp, cc-alert-chooser-page.c, cc-alert-chooser-page.h` | page | `lib/panels/sound/alert_chooser_page.rb` | No |
-| `cc-balance-slider.blp, cc-balance-slider.c, cc-balance-slider.h` | widget | `lib/panels/sound/balance_slider.rb` | No |
-| `cc-device-combo-row.blp, cc-device-combo-row.c, cc-device-combo-row.h` | row | `lib/panels/sound/device_combo_row.rb` | No |
-| `cc-fade-slider.blp, cc-fade-slider.c, cc-fade-slider.h` | widget | `lib/panels/sound/fade_slider.rb` | No |
-| `cc-level-bar.c, cc-level-bar.h` | widget | `lib/panels/sound/level_bar.rb` | No |
-| `cc-profile-combo-row.blp, cc-profile-combo-row.c, cc-profile-combo-row.h` | row | `lib/panels/sound/profile_combo_row.rb` | No |
-| `cc-sound-enums.h` | widget/helper | `lib/panels/sound/sound_enums.rb` | No |
-| `cc-sound-panel.blp, cc-sound-panel.c, cc-sound-panel.h` | panel | `lib/panels/sound/sound_panel.rb` | No |
-| `cc-stream-row.blp, cc-stream-row.c, cc-stream-row.h` | row | `lib/panels/sound/stream_row.rb` | No |
-| `cc-subwoofer-slider.blp, cc-subwoofer-slider.c, cc-subwoofer-slider.h` | widget | `lib/panels/sound/subwoofer_slider.rb` | No |
-| `cc-volume-levels-page.blp, cc-volume-levels-page.c, cc-volume-levels-page.h` | page | `lib/panels/sound/volume_levels_page.rb` | No |
-| `cc-volume-slider.blp, cc-volume-slider.c, cc-volume-slider.h` | widget | `lib/panels/sound/volume_slider.rb` | No |
+| `panels/sound/cc-alert-chooser-page.blp, panels/sound/cc-alert-chooser-page.c, panels/sound/cc-alert-chooser-page.h` | page | `lib/panels/sound/alert_chooser_page.rb` | no |
+| `panels/sound/cc-balance-slider.blp, panels/sound/cc-balance-slider.c, panels/sound/cc-balance-slider.h` | support | `lib/panels/sound/balance_slider.rb` | no |
+| `panels/sound/cc-device-combo-row.blp, panels/sound/cc-device-combo-row.c, panels/sound/cc-device-combo-row.h` | row | `lib/panels/sound/device_combo_row.rb` | no |
+| `panels/sound/cc-fade-slider.blp, panels/sound/cc-fade-slider.c, panels/sound/cc-fade-slider.h` | support | `lib/panels/sound/fade_slider.rb` | no |
+| `panels/sound/cc-level-bar.c, panels/sound/cc-level-bar.h` | support | `lib/panels/sound/level_bar.rb` | no |
+| `panels/sound/cc-output-test-wheel.c, panels/sound/cc-output-test-wheel.h` | support | `lib/panels/sound/output_test_wheel.rb` | no |
+| `panels/sound/cc-output-test-window.blp, panels/sound/cc-output-test-window.c, panels/sound/cc-output-test-window.h` | window | `lib/panels/sound/output_test_window.rb` | no |
+| `panels/sound/cc-profile-combo-row.blp, panels/sound/cc-profile-combo-row.c, panels/sound/cc-profile-combo-row.h` | row | `lib/panels/sound/profile_combo_row.rb` | no |
+| `panels/sound/cc-sound-enums.h` | enum | `lib/panels/sound/sound_enums.rb` | yes |
+| `panels/sound/cc-sound-panel.blp, panels/sound/cc-sound-panel.c, panels/sound/cc-sound-panel.h` | panel | `lib/gnome_control_center/panels/sound_panel.rb` | no |
+| `panels/sound/cc-speaker-test-button.c, panels/sound/cc-speaker-test-button.h` | widget | `lib/panels/sound/speaker_test_button.rb` | no |
+| `panels/sound/cc-stream-row.blp, panels/sound/cc-stream-row.c, panels/sound/cc-stream-row.h` | row | `lib/panels/sound/stream_row.rb` | no |
+| `panels/sound/cc-subwoofer-slider.blp, panels/sound/cc-subwoofer-slider.c, panels/sound/cc-subwoofer-slider.h` | support | `lib/panels/sound/subwoofer_slider.rb` | no |
+| `panels/sound/cc-volume-levels-page.blp, panels/sound/cc-volume-levels-page.c, panels/sound/cc-volume-levels-page.h` | page | `lib/panels/sound/volume_levels_page.rb` | no |
+| `panels/sound/cc-volume-slider.blp, panels/sound/cc-volume-slider.c, panels/sound/cc-volume-slider.h` | support | `lib/panels/sound/volume_slider.rb` | no |
 
-## panels/system/
+## panels/system (40 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `about/cc-about-page.blp, about/cc-about-page.c, about/cc-about-page.h` | page | `lib/gnome_control_center/panels/about_panel.rb` | Yes — upstream models About as a page inside `cc-system-panel`; the port instead gives it its own top-level panel entry (`lib/gnome_control_center/panels/about_panel.rb`), registered directly in `panel_loader.rb` ahead of `system_panel.rb` existing |
-| `about/gnome-control-center-print-renderer.c` | widget/helper | `lib/gnome_control_center/panels/about_gnome_control_center_print_renderer.rb` | No |
-| `about/info-cleanup.c, about/info-cleanup.h` | widget/helper | folded into `lib/gnome_control_center/system_info.rb` | Yes — ported as part of `SystemInfo`, not a separate file |
-| `cc-password-utils.c, cc-password-utils.h` | widget/helper | `lib/panels/system/password_utils.rb` | No |
-| `cc-system-panel.blp, cc-system-panel.c, cc-system-panel.h` | panel | `lib/panels/system/system_panel.rb` | No |
-| `cc-systemd-service.c, cc-systemd-service.h` | widget/helper | `lib/panels/system/systemd_service.rb` | No |
-| `datetime/backward` | widget/helper | `lib/panels/system/datetime_backward.rb` | No |
-| `datetime/cc-datetime-page.blp, datetime/cc-datetime-page.c, datetime/cc-datetime-page.h` | page | `lib/panels/system/datetime_cc_datetime_page.rb` | No |
-| `datetime/cc-month-row.blp` | row | `lib/panels/system/datetime_cc_month_row.rb` | No |
-| `datetime/cc-tz-dialog.blp, datetime/cc-tz-dialog.c, datetime/cc-tz-dialog.h` | dialog | `lib/panels/system/datetime_cc_tz_dialog.rb` | No |
-| `datetime/cc-tz-item.c, datetime/cc-tz-item.h` | model/item | `lib/panels/system/datetime_cc_tz_item.rb` | No |
-| `datetime/cc-tz-row.blp` | row | `lib/panels/system/datetime_cc_tz_row.rb` | No |
-| `datetime/date-endian.c, datetime/date-endian.h` | widget/helper | `lib/panels/system/datetime_date_endian.rb` | No |
-| `datetime/tz.c, datetime/tz.h` | widget/helper | `lib/panels/system/datetime_tz.rb` | No |
-| `region/cc-format-chooser.blp, region/cc-format-chooser.c, region/cc-format-chooser.h` | chooser widget | `lib/panels/system/region_cc_format_chooser.rb` | No |
-| `region/cc-format-preview.blp, region/cc-format-preview.c, region/cc-format-preview.h` | widget/helper | `lib/panels/system/region_cc_format_preview.rb` | No |
-| `region/cc-region-page.blp, region/cc-region-page.c, region/cc-region-page.h` | page | `lib/panels/system/region_cc_region_page.rb` | No |
-| `remote-desktop/cc-desktop-sharing-page.blp, remote-desktop/cc-desktop-sharing-page.c, remote-desktop/cc-desktop-sharing-page.h` | page | `lib/panels/system/remote_desktop_cc_desktop_sharing_page.rb` | No |
-| `remote-desktop/cc-encryption-fingerprint-dialog.blp, remote-desktop/cc-encryption-fingerprint-dialog.c, remote-desktop/cc-encryption-fingerprint-dialog.h` | dialog | `lib/panels/system/remote_desktop_cc_encryption_fingerprint_dialog.rb` | No |
-| `remote-desktop/cc-gnome-remote-desktop.c, remote-desktop/cc-gnome-remote-desktop.h` | widget/helper | `lib/panels/system/remote_desktop_cc_gnome_remote_desktop.rb` | No |
-| `remote-desktop/cc-remote-desktop-page.blp, remote-desktop/cc-remote-desktop-page.c, remote-desktop/cc-remote-desktop-page.h` | page | `lib/panels/system/remote_desktop_cc_remote_desktop_page.rb` | No |
-| `remote-desktop/cc-remote-login-page.blp, remote-desktop/cc-remote-login-page.c, remote-desktop/cc-remote-login-page.h` | page | `lib/panels/system/remote_desktop_cc_remote_login_page.rb` | No |
-| `remote-desktop/cc-tls-certificate.c, remote-desktop/cc-tls-certificate.h` | widget/helper | `lib/panels/system/remote_desktop_cc_tls_certificate.rb` | No |
-| `secure-shell/cc-secure-shell-page.blp, secure-shell/cc-secure-shell-page.c, secure-shell/cc-secure-shell-page.h` | page | `lib/panels/system/secure_shell_cc_secure_shell_page.rb` | No |
-| `secure-shell/cc-secure-shell.c, secure-shell/cc-secure-shell.h` | widget/helper | `lib/panels/system/secure_shell_cc_secure_shell.rb` | No |
-| `users/cc-add-user-dialog.blp, users/cc-add-user-dialog.c, users/cc-add-user-dialog.h` | dialog | `lib/panels/system/users_cc_add_user_dialog.rb` | No |
-| `users/cc-avatar-chooser.blp, users/cc-avatar-chooser.c, users/cc-avatar-chooser.h` | chooser widget | `lib/panels/system/users_cc_avatar_chooser.rb` | No |
-| `users/cc-crop-area.c, users/cc-crop-area.h` | widget/helper | `lib/panels/system/users_cc_crop_area.rb` | No |
-| `users/cc-enterprise-login-dialog.blp, users/cc-enterprise-login-dialog.c, users/cc-enterprise-login-dialog.h` | dialog | `lib/panels/system/users_cc_enterprise_login_dialog.rb` | No |
-| `users/cc-entry-feedback.blp, users/cc-entry-feedback.c, users/cc-entry-feedback.h` | widget/helper | `lib/panels/system/users_cc_entry_feedback.rb` | No |
-| `users/cc-fingerprint-dialog.blp, users/cc-fingerprint-dialog.c, users/cc-fingerprint-dialog.h` | dialog | `lib/panels/system/users_cc_fingerprint_dialog.rb` | No |
-| `users/cc-fingerprint-manager.c, users/cc-fingerprint-manager.h` | manager/service | `lib/panels/system/users_cc_fingerprint_manager.rb` | No |
-| `users/cc-password-dialog.blp, users/cc-password-dialog.c, users/cc-password-dialog.h` | dialog | `lib/panels/system/users_cc_password_dialog.rb` | No |
-| `users/cc-realm-manager.c, users/cc-realm-manager.h` | manager/service | `lib/panels/system/users_cc_realm_manager.rb` | No |
-| `users/cc-user-page.blp, users/cc-user-page.c, users/cc-user-page.h` | page | `lib/panels/system/users_cc_user_page.rb` | No |
-| `users/cc-users-page.blp, users/cc-users-page.c, users/cc-users-page.h` | page | `lib/panels/system/users_cc_users_page.rb` | No |
-| `users/fingerprint-strings.h` | widget/helper | `lib/panels/system/users_fingerprint_strings.rb` | No |
-| `users/pw-utils.c, users/pw-utils.h` | widget/helper | `lib/panels/system/users_pw_utils.rb` | No |
-| `users/run-passwd.c, users/run-passwd.h` | widget/helper | `lib/panels/system/users_run_passwd.rb` | No |
-| `users/user-utils.c, users/user-utils.h` | widget/helper | `lib/panels/system/users_user_utils.rb` | No |
+| `panels/system/about/cc-about-page.blp, panels/system/about/cc-about-page.c, panels/system/about/cc-about-page.h` | page | `lib/gnome_control_center/panels/about_panel.rb` | yes |
+| `panels/system/about/gnome-control-center-print-renderer.c` | support | `lib/panels/system/about/gnome_control_center_print_renderer.rb` | no |
+| `panels/system/about/info-cleanup.c, panels/system/about/info-cleanup.h` | support | `lib/panels/system/about/info_cleanup.rb` | no |
+| `panels/system/about/test-info-cleanup.c` | support | `lib/panels/system/about/test_info_cleanup.rb` | no |
+| `panels/system/cc-password-utils.c, panels/system/cc-password-utils.h` | util | `lib/panels/system/password_utils.rb` | no |
+| `panels/system/cc-system-panel.blp, panels/system/cc-system-panel.c, panels/system/cc-system-panel.h` | panel | `lib/gnome_control_center/panels/system_panel.rb` | no |
+| `panels/system/cc-systemd-service.c, panels/system/cc-systemd-service.h` | support | `lib/panels/system/systemd_service.rb` | no |
+| `panels/system/datetime/cc-datetime-page.blp, panels/system/datetime/cc-datetime-page.c, panels/system/datetime/cc-datetime-page.h` | page | `lib/panels/system/datetime/datetime_page.rb` | no |
+| `panels/system/datetime/cc-month-row.blp` | row | `lib/panels/system/datetime/month_row.rb` | no |
+| `panels/system/datetime/cc-tz-dialog.blp, panels/system/datetime/cc-tz-dialog.c, panels/system/datetime/cc-tz-dialog.h` | dialog | `lib/panels/system/datetime/tz_dialog.rb` | no |
+| `panels/system/datetime/cc-tz-item.c, panels/system/datetime/cc-tz-item.h` | support | `lib/panels/system/datetime/tz_item.rb` | no |
+| `panels/system/datetime/cc-tz-row.blp` | row | `lib/panels/system/datetime/tz_row.rb` | no |
+| `panels/system/datetime/date-endian.c, panels/system/datetime/date-endian.h` | support | `lib/panels/system/datetime/date_endian.rb` | no |
+| `panels/system/datetime/tz.c, panels/system/datetime/tz.h` | support | `lib/panels/system/datetime/tz.rb` | no |
+| `panels/system/region/cc-format-chooser.blp, panels/system/region/cc-format-chooser.c, panels/system/region/cc-format-chooser.h` | support | `lib/panels/system/region/format_chooser.rb` | no |
+| `panels/system/region/cc-format-preview.blp, panels/system/region/cc-format-preview.c, panels/system/region/cc-format-preview.h` | support | `lib/panels/system/region/format_preview.rb` | no |
+| `panels/system/region/cc-region-page.blp, panels/system/region/cc-region-page.c, panels/system/region/cc-region-page.h` | page | `lib/panels/system/region/region_page.rb` | no |
+| `panels/system/remote-desktop/cc-desktop-sharing-page.blp, panels/system/remote-desktop/cc-desktop-sharing-page.c, panels/system/remote-desktop/cc-desktop-sharing-page.h` | page | `lib/panels/system/remote_desktop/desktop_sharing_page.rb` | no |
+| `panels/system/remote-desktop/cc-encryption-fingerprint-dialog.blp, panels/system/remote-desktop/cc-encryption-fingerprint-dialog.c, panels/system/remote-desktop/cc-encryption-fingerprint-dialog.h` | dialog | `lib/panels/system/remote_desktop/encryption_fingerprint_dialog.rb` | no |
+| `panels/system/remote-desktop/cc-gnome-remote-desktop.c, panels/system/remote-desktop/cc-gnome-remote-desktop.h` | support | `lib/panels/system/remote_desktop/gnome_remote_desktop.rb` | no |
+| `panels/system/remote-desktop/cc-remote-desktop-page.blp, panels/system/remote-desktop/cc-remote-desktop-page.c, panels/system/remote-desktop/cc-remote-desktop-page.h` | page | `lib/panels/system/remote_desktop/remote_desktop_page.rb` | no |
+| `panels/system/remote-desktop/cc-remote-login-page.blp, panels/system/remote-desktop/cc-remote-login-page.c, panels/system/remote-desktop/cc-remote-login-page.h` | page | `lib/panels/system/remote_desktop/remote_login_page.rb` | no |
+| `panels/system/remote-desktop/cc-tls-certificate.c, panels/system/remote-desktop/cc-tls-certificate.h` | support | `lib/panels/system/remote_desktop/tls_certificate.rb` | no |
+| `panels/system/secure-shell/cc-secure-shell.c, panels/system/secure-shell/cc-secure-shell.h` | support | `lib/panels/system/secure_shell/secure_shell.rb` | no |
+| `panels/system/secure-shell/cc-secure-shell-page.blp, panels/system/secure-shell/cc-secure-shell-page.c, panels/system/secure-shell/cc-secure-shell-page.h` | page | `lib/panels/system/secure_shell/secure_shell_page.rb` | no |
+| `panels/system/users/cc-add-user-dialog.blp, panels/system/users/cc-add-user-dialog.c, panels/system/users/cc-add-user-dialog.h` | dialog | `lib/panels/system/users/add_user_dialog.rb` | no |
+| `panels/system/users/cc-avatar-chooser.blp, panels/system/users/cc-avatar-chooser.c, panels/system/users/cc-avatar-chooser.h` | support | `lib/panels/system/users/avatar_chooser.rb` | no |
+| `panels/system/users/cc-crop-area.c, panels/system/users/cc-crop-area.h` | support | `lib/panels/system/users/crop_area.rb` | no |
+| `panels/system/users/cc-enterprise-login-dialog.blp, panels/system/users/cc-enterprise-login-dialog.c, panels/system/users/cc-enterprise-login-dialog.h` | dialog | `lib/panels/system/users/enterprise_login_dialog.rb` | no |
+| `panels/system/users/cc-entry-feedback.blp, panels/system/users/cc-entry-feedback.c, panels/system/users/cc-entry-feedback.h` | support | `lib/panels/system/users/entry_feedback.rb` | no |
+| `panels/system/users/cc-fingerprint-dialog.blp, panels/system/users/cc-fingerprint-dialog.c, panels/system/users/cc-fingerprint-dialog.h` | dialog | `lib/panels/system/users/fingerprint_dialog.rb` | no |
+| `panels/system/users/cc-fingerprint-manager.c, panels/system/users/cc-fingerprint-manager.h` | support | `lib/panels/system/users/fingerprint_manager.rb` | no |
+| `panels/system/users/cc-password-dialog.blp, panels/system/users/cc-password-dialog.c, panels/system/users/cc-password-dialog.h` | dialog | `lib/panels/system/users/password_dialog.rb` | no |
+| `panels/system/users/cc-realm-manager.c, panels/system/users/cc-realm-manager.h` | support | `lib/panels/system/users/realm_manager.rb` | no |
+| `panels/system/users/cc-user-page.blp, panels/system/users/cc-user-page.c, panels/system/users/cc-user-page.h` | page | `lib/panels/system/users/user_page.rb` | no |
+| `panels/system/users/cc-users-page.blp, panels/system/users/cc-users-page.c, panels/system/users/cc-users-page.h` | page | `lib/panels/system/users/users_page.rb` | no |
+| `panels/system/users/fingerprint-strings.h` | support | `lib/panels/system/users/fingerprint_strings.rb` | no |
+| `panels/system/users/pw-utils.c, panels/system/users/pw-utils.h` | util | `lib/panels/system/users/pw_utils.rb` | no |
+| `panels/system/users/run-passwd.c, panels/system/users/run-passwd.h` | support | `lib/panels/system/users/run_passwd.rb` | no |
+| `panels/system/users/user-utils.c, panels/system/users/user-utils.h` | util | `lib/panels/system/users/user_utils.rb` | no |
 
-## panels/universal-access/
+## panels/universal-access (8 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-cursor-size-page.blp, cc-cursor-size-page.c, cc-cursor-size-page.h` | page | `lib/panels/universal-access/cursor_size_page.rb` | No |
-| `cc-ua-hearing-page.blp, cc-ua-hearing-page.c, cc-ua-hearing-page.h` | page | `lib/panels/universal-access/ua_hearing_page.rb` | No |
-| `cc-ua-macros.h` | widget/helper | `lib/panels/universal-access/ua_macros.rb` | No |
-| `cc-ua-mouse-page.blp, cc-ua-mouse-page.c, cc-ua-mouse-page.h` | page | `lib/panels/universal-access/ua_mouse_page.rb` | No |
-| `cc-ua-panel.blp, cc-ua-panel.c, cc-ua-panel.h` | panel | `lib/panels/universal-access/ua_panel.rb` | No |
-| `cc-ua-seeing-page.blp, cc-ua-seeing-page.c, cc-ua-seeing-page.h` | page | `lib/panels/universal-access/ua_seeing_page.rb` | No |
-| `cc-ua-typing-page.blp, cc-ua-typing-page.c, cc-ua-typing-page.h` | page | `lib/panels/universal-access/ua_typing_page.rb` | No |
-| `cc-ua-zoom-page.blp, cc-ua-zoom-page.c, cc-ua-zoom-page.h` | page | `lib/panels/universal-access/ua_zoom_page.rb` | No |
+| `panels/universal-access/cc-cursor-size-page.blp, panels/universal-access/cc-cursor-size-page.c, panels/universal-access/cc-cursor-size-page.h` | page | `lib/panels/universal-access/cursor_size_page.rb` | no |
+| `panels/universal-access/cc-ua-hearing-page.blp, panels/universal-access/cc-ua-hearing-page.c, panels/universal-access/cc-ua-hearing-page.h` | page | `lib/panels/universal-access/ua_hearing_page.rb` | no |
+| `panels/universal-access/cc-ua-macros.h` | support | `lib/panels/universal-access/ua_macros.rb` | no |
+| `panels/universal-access/cc-ua-mouse-page.blp, panels/universal-access/cc-ua-mouse-page.c, panels/universal-access/cc-ua-mouse-page.h` | page | `lib/panels/universal-access/ua_mouse_page.rb` | no |
+| `panels/universal-access/cc-ua-panel.blp, panels/universal-access/cc-ua-panel.c, panels/universal-access/cc-ua-panel.h` | panel | `lib/gnome_control_center/panels/ua_panel.rb` | no |
+| `panels/universal-access/cc-ua-seeing-page.blp, panels/universal-access/cc-ua-seeing-page.c, panels/universal-access/cc-ua-seeing-page.h` | page | `lib/panels/universal-access/ua_seeing_page.rb` | no |
+| `panels/universal-access/cc-ua-typing-page.blp, panels/universal-access/cc-ua-typing-page.c, panels/universal-access/cc-ua-typing-page.h` | page | `lib/panels/universal-access/ua_typing_page.rb` | no |
+| `panels/universal-access/cc-ua-zoom-page.blp, panels/universal-access/cc-ua-zoom-page.c, panels/universal-access/cc-ua-zoom-page.h` | page | `lib/panels/universal-access/ua_zoom_page.rb` | no |
 
-## panels/wacom/
+## panels/wacom (17 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `button-mapping.blp` | widget/helper | `lib/panels/wacom/button_mapping.rb` | No |
-| `calibrator/COPYING` | widget/helper | `lib/panels/wacom/calibrator_COPYING.rb` | No |
-| `calibrator/calibrator-gui.c, calibrator/calibrator-gui.h` | widget/helper | `lib/panels/wacom/calibrator_calibrator_gui.rb` | No |
-| `calibrator/calibrator.blp, calibrator/calibrator.c, calibrator/calibrator.h` | widget/helper | `lib/panels/wacom/calibrator_calibrator.rb` | No |
-| `calibrator/cc-clock.c, calibrator/cc-clock.h` | widget/helper | `lib/panels/wacom/calibrator_cc_clock.rb` | No |
-| `cc-drawing-area.c, cc-drawing-area.h` | widget/helper | `lib/panels/wacom/drawing_area.rb` | No |
-| `cc-tablet-tool-map.c, cc-tablet-tool-map.h` | widget/helper | `lib/panels/wacom/tablet_tool_map.rb` | No |
-| `cc-wacom-button-row.c, cc-wacom-button-row.h` | row | `lib/panels/wacom/wacom_button_row.rb` | No |
-| `cc-wacom-device.c, cc-wacom-device.h` | model/device | `lib/panels/wacom/wacom_device.rb` | No |
-| `cc-wacom-ekr-page.blp, cc-wacom-ekr-page.c, cc-wacom-ekr-page.h` | page | `lib/panels/wacom/wacom_ekr_page.rb` | No |
-| `cc-wacom-page.blp, cc-wacom-page.c, cc-wacom-page.h` | page | `lib/panels/wacom/wacom_page.rb` | No |
-| `cc-wacom-panel.blp, cc-wacom-panel.c, cc-wacom-panel.h` | panel | `lib/panels/wacom/wacom_panel.rb` | No |
-| `cc-wacom-stylus-action-dialog.blp, cc-wacom-stylus-action-dialog.c, cc-wacom-stylus-action-dialog.h` | dialog | `lib/panels/wacom/wacom_stylus_action_dialog.rb` | No |
-| `cc-wacom-stylus-page.blp, cc-wacom-stylus-page.c, cc-wacom-stylus-page.h` | page | `lib/panels/wacom/wacom_stylus_page.rb` | No |
-| `cc-wacom-tool.c, cc-wacom-tool.h` | widget/helper | `lib/panels/wacom/wacom_tool.rb` | No |
-| `gsd-enums.h` | widget/helper | `lib/panels/wacom/gsd_enums.rb` | No |
-| `gsd-wacom-key-shortcut-button.c, gsd-wacom-key-shortcut-button.h` | widget | `lib/panels/wacom/gsd_wacom_key_shortcut_button.rb` | No |
+| `panels/wacom/button-mapping.blp` | support | `lib/panels/wacom/button_mapping.rb` | no |
+| `panels/wacom/calibrator/calibrator.blp, panels/wacom/calibrator/calibrator.c, panels/wacom/calibrator/calibrator.h` | support | `lib/panels/wacom/calibrator/calibrator.rb` | no |
+| `panels/wacom/calibrator/calibrator-gui.c, panels/wacom/calibrator/calibrator-gui.h` | support | `lib/panels/wacom/calibrator/calibrator_gui.rb` | no |
+| `panels/wacom/calibrator/cc-clock.c, panels/wacom/calibrator/cc-clock.h` | support | `lib/panels/wacom/calibrator/clock.rb` | no |
+| `panels/wacom/cc-drawing-area.c, panels/wacom/cc-drawing-area.h` | support | `lib/panels/wacom/drawing_area.rb` | no |
+| `panels/wacom/cc-tablet-tool-map.c, panels/wacom/cc-tablet-tool-map.h` | support | `lib/panels/wacom/tablet_tool_map.rb` | no |
+| `panels/wacom/cc-wacom-button-row.c, panels/wacom/cc-wacom-button-row.h` | row | `lib/panels/wacom/wacom_button_row.rb` | no |
+| `panels/wacom/cc-wacom-device.c, panels/wacom/cc-wacom-device.h` | support | `lib/panels/wacom/wacom_device.rb` | no |
+| `panels/wacom/cc-wacom-ekr-page.blp, panels/wacom/cc-wacom-ekr-page.c, panels/wacom/cc-wacom-ekr-page.h` | page | `lib/panels/wacom/wacom_ekr_page.rb` | no |
+| `panels/wacom/cc-wacom-page.blp, panels/wacom/cc-wacom-page.c, panels/wacom/cc-wacom-page.h` | page | `lib/panels/wacom/wacom_page.rb` | no |
+| `panels/wacom/cc-wacom-panel.blp, panels/wacom/cc-wacom-panel.c, panels/wacom/cc-wacom-panel.h` | panel | `lib/gnome_control_center/panels/wacom_panel.rb` | no |
+| `panels/wacom/cc-wacom-stylus-action-dialog.blp, panels/wacom/cc-wacom-stylus-action-dialog.c, panels/wacom/cc-wacom-stylus-action-dialog.h` | dialog | `lib/panels/wacom/wacom_stylus_action_dialog.rb` | no |
+| `panels/wacom/cc-wacom-stylus-page.blp, panels/wacom/cc-wacom-stylus-page.c, panels/wacom/cc-wacom-stylus-page.h` | page | `lib/panels/wacom/wacom_stylus_page.rb` | no |
+| `panels/wacom/cc-wacom-tool.c, panels/wacom/cc-wacom-tool.h` | support | `lib/panels/wacom/wacom_tool.rb` | no |
+| `panels/wacom/gsd-enums.h` | enum | `lib/panels/wacom/gsd_enums.rb` | no |
+| `panels/wacom/gsd-wacom-key-shortcut-button.c, panels/wacom/gsd-wacom-key-shortcut-button.h` | widget | `lib/panels/wacom/gsd_wacom_key_shortcut_button.rb` | no |
+| `panels/wacom/test-wacom.c` | support | `lib/panels/wacom/test_wacom.rb` | no |
 
-## panels/wellbeing/
+## panels/wellbeing (6 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-bar-chart-bar.blp, cc-bar-chart-bar.c, cc-bar-chart-bar.h` | widget | `lib/panels/wellbeing/bar_chart_bar.rb` | No |
-| `cc-bar-chart-group.blp, cc-bar-chart-group.c, cc-bar-chart-group.h` | group widget | `lib/panels/wellbeing/bar_chart_group.rb` | No |
-| `cc-bar-chart.blp, cc-bar-chart.c, cc-bar-chart.h` | widget/helper | `lib/panels/wellbeing/bar_chart.rb` | No |
-| `cc-break-schedule-row.blp, cc-break-schedule-row.c, cc-break-schedule-row.h` | row | `lib/panels/wellbeing/break_schedule_row.rb` | No |
-| `cc-screen-time-statistics-row.blp, cc-screen-time-statistics-row.c, cc-screen-time-statistics-row.h` | row | `lib/panels/wellbeing/screen_time_statistics_row.rb` | No |
-| `cc-wellbeing-panel.blp, cc-wellbeing-panel.c, cc-wellbeing-panel.h` | panel | `lib/panels/wellbeing/wellbeing_panel.rb` | No |
+| `panels/wellbeing/cc-bar-chart.blp, panels/wellbeing/cc-bar-chart.c, panels/wellbeing/cc-bar-chart.h` | support | `lib/panels/wellbeing/bar_chart.rb` | no |
+| `panels/wellbeing/cc-bar-chart-bar.blp, panels/wellbeing/cc-bar-chart-bar.c, panels/wellbeing/cc-bar-chart-bar.h` | support | `lib/panels/wellbeing/bar_chart_bar.rb` | no |
+| `panels/wellbeing/cc-bar-chart-group.blp, panels/wellbeing/cc-bar-chart-group.c, panels/wellbeing/cc-bar-chart-group.h` | support | `lib/panels/wellbeing/bar_chart_group.rb` | no |
+| `panels/wellbeing/cc-break-schedule-row.blp, panels/wellbeing/cc-break-schedule-row.c, panels/wellbeing/cc-break-schedule-row.h` | row | `lib/panels/wellbeing/break_schedule_row.rb` | no |
+| `panels/wellbeing/cc-screen-time-statistics-row.blp, panels/wellbeing/cc-screen-time-statistics-row.c, panels/wellbeing/cc-screen-time-statistics-row.h` | row | `lib/panels/wellbeing/screen_time_statistics_row.rb` | no |
+| `panels/wellbeing/cc-wellbeing-panel.blp, panels/wellbeing/cc-wellbeing-panel.c, panels/wellbeing/cc-wellbeing-panel.h` | panel | `lib/gnome_control_center/panels/wellbeing_panel.rb` | no |
 
-## panels/wwan/
+## panels/wwan (10 components)
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `cc-wwan-apn-dialog.blp, cc-wwan-apn-dialog.c, cc-wwan-apn-dialog.h` | dialog | `lib/panels/wwan/wwan_apn_dialog.rb` | No |
-| `cc-wwan-data.c, cc-wwan-data.h` | widget/helper | `lib/panels/wwan/wwan_data.rb` | No |
-| `cc-wwan-details-dialog.blp, cc-wwan-details-dialog.c, cc-wwan-details-dialog.h` | dialog | `lib/panels/wwan/wwan_details_dialog.rb` | No |
-| `cc-wwan-device-page.blp, cc-wwan-device-page.c, cc-wwan-device-page.h` | page | `lib/panels/wwan/wwan_device_page.rb` | No |
-| `cc-wwan-device.c, cc-wwan-device.h` | model/device | `lib/panels/wwan/wwan_device.rb` | No |
-| `cc-wwan-errors-private.h` | widget/helper | `lib/panels/wwan/wwan_errors_private.rb` | No |
-| `cc-wwan-mode-dialog.blp, cc-wwan-mode-dialog.c, cc-wwan-mode-dialog.h` | dialog | `lib/panels/wwan/wwan_mode_dialog.rb` | No |
-| `cc-wwan-network-dialog.blp, cc-wwan-network-dialog.c, cc-wwan-network-dialog.h` | dialog | `lib/panels/wwan/wwan_network_dialog.rb` | No |
-| `cc-wwan-panel.blp, cc-wwan-panel.c, cc-wwan-panel.h` | panel | `lib/panels/wwan/wwan_panel.rb` | No |
-| `cc-wwan-sim-lock-dialog.blp, cc-wwan-sim-lock-dialog.c, cc-wwan-sim-lock-dialog.h` | dialog | `lib/panels/wwan/wwan_sim_lock_dialog.rb` | No |
+| `panels/wwan/cc-wwan-apn-dialog.blp, panels/wwan/cc-wwan-apn-dialog.c, panels/wwan/cc-wwan-apn-dialog.h` | dialog | `lib/panels/wwan/wwan_apn_dialog.rb` | no |
+| `panels/wwan/cc-wwan-data.c, panels/wwan/cc-wwan-data.h` | support | `lib/panels/wwan/wwan_data.rb` | no |
+| `panels/wwan/cc-wwan-details-dialog.blp, panels/wwan/cc-wwan-details-dialog.c, panels/wwan/cc-wwan-details-dialog.h` | dialog | `lib/panels/wwan/wwan_details_dialog.rb` | no |
+| `panels/wwan/cc-wwan-device.c, panels/wwan/cc-wwan-device.h` | support | `lib/panels/wwan/wwan_device.rb` | no |
+| `panels/wwan/cc-wwan-device-page.blp, panels/wwan/cc-wwan-device-page.c, panels/wwan/cc-wwan-device-page.h` | page | `lib/panels/wwan/wwan_device_page.rb` | no |
+| `panels/wwan/cc-wwan-errors-private.h` | support | `lib/panels/wwan/wwan_errors_private.rb` | no |
+| `panels/wwan/cc-wwan-mode-dialog.blp, panels/wwan/cc-wwan-mode-dialog.c, panels/wwan/cc-wwan-mode-dialog.h` | dialog | `lib/panels/wwan/wwan_mode_dialog.rb` | no |
+| `panels/wwan/cc-wwan-network-dialog.blp, panels/wwan/cc-wwan-network-dialog.c, panels/wwan/cc-wwan-network-dialog.h` | dialog | `lib/panels/wwan/wwan_network_dialog.rb` | no |
+| `panels/wwan/cc-wwan-panel.blp, panels/wwan/cc-wwan-panel.c, panels/wwan/cc-wwan-panel.h` | panel | `lib/gnome_control_center/panels/wwan_panel.rb` | no |
+| `panels/wwan/cc-wwan-sim-lock-dialog.blp, panels/wwan/cc-wwan-sim-lock-dialog.c, panels/wwan/cc-wwan-sim-lock-dialog.h` | dialog | `lib/panels/wwan/wwan_sim_lock_dialog.rb` | no |
 
+**panels/ totals: 282 components, 5 already in `lib/`.**
 
-## shell/
+## shell/ — application chrome (9 components)
 
-The application shell: window, panel list/sidebar, panel loader, shortcuts
-dialog. This is the entry point every panel plugs into and should be ported
-before or alongside the first panel.
-
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `shell/cc-application.c/.h` | manager/service (Adw.Application subclass: actions, accelerators, About) | `lib/gnome_control_center/application.rb` | Partial — wires window, panel loader, shell model and the About panel; accelerators/full action set still to confirm against upstream |
-| `shell/cc-window.blp`, `cc-window.c/.h` | window (main `Adw.ApplicationWindow`: header bar, search, sidebar + content `Adw.NavigationSplitView`) | `lib/gnome_control_center/window.rb` | Yes |
-| `shell/cc-panel.blp`, `cc-panel.c/.h` | widget/helper (base class every panel subclasses) | `lib/gnome_control_center/panel.rb` | Yes |
-| `shell/cc-panel-list.blp`, `cc-panel-list.c/.h` | widget (sidebar list of panels, category headers, search filtering) | `lib/gnome_control_center/panel_list.rb` | Yes |
-| `shell/cc-panel-loader.c/.h` | manager/service (maps panel id → GType, lazy-loads panel modules) | `lib/gnome_control_center/panel_loader.rb` | Yes — currently registers only the `about` panel; the other 23 panel ids still to add as each panel is ported |
-| `shell/cc-shell-model.c/.h` | model/config (GListModel of panel entries backing the sidebar) | `lib/gnome_control_center/shell_model.rb` | Yes |
-| `shell/cc-object-storage.c/.h` | widget/helper (cache of long-lived GObjects, e.g. GDBusProxies) | `lib/gnome_control_center/object_storage.rb` | No |
-| `shell/cc-log.c/.h` | widget/helper (debug logging) | `lib/gnome_control_center/log.rb` | No |
-| `shell/shortcuts-dialog.blp` | dialog (standalone `.blp` with no backing source file — a `Gtk.ShortcutsWindow`) | `lib/gnome_control_center/shortcuts_dialog.rb` | No |
-| `shell/main.c` | widget/helper (process entry point) | `lib/gnome_control_center/application.rb` (merged into the existing entry point) | Yes |
-| `shell/org.gnome.Settings.gschema.xml` | GSettings schema (not a component; last-panel memory, window size, etc.) | — define as a `.gschema.xml` resource the gem installs, not a `.rb` file | No |
-| `shell/gnome-control-center.gresource.xml.in` | GResource manifest (not a component; bundles shell/style.css + shell .ui) | — n/a to a Ruby port, which builds widgets in code | No |
-| `shell/style.css` | stylesheet (defines/overrides CSS classes referenced by shell and panel widgets) | ship as a resource file, not `.rb` | No |
-| `shell/org.gnome.Settings.desktop.in`, `.service.in` | app launcher / D-Bus activation (not a UI component) | packaging concern | No |
+| `shell/cc-application.c, shell/cc-application.h` | support | `lib/gnome_control_center/application.rb` | yes |
+| `shell/cc-log.c, shell/cc-log.h` | support | `lib/gnome_control_center/log.rb` | no |
+| `shell/cc-object-storage.c, shell/cc-object-storage.h` | support | `lib/gnome_control_center/object_storage.rb` | no |
+| `shell/cc-panel-list.blp, shell/cc-panel-list.c, shell/cc-panel-list.h` | support | `lib/gnome_control_center/panel_list.rb` | yes |
+| `shell/cc-panel-loader.c, shell/cc-panel-loader.h` | support | `lib/gnome_control_center/panel_loader.rb` | yes |
+| `shell/cc-panel.blp, shell/cc-panel.c, shell/cc-panel.h` | support | `lib/gnome_control_center/panel.rb` | yes |
+| `shell/cc-shell-model.c, shell/cc-shell-model.h` | support | `lib/gnome_control_center/shell_model.rb` | yes |
+| `shell/cc-window.blp, shell/cc-window.c, shell/cc-window.h` | window | `lib/gnome_control_center/window.rb` | yes |
+| `shell/shortcuts-dialog.blp` | dialog | `lib/gnome_control_center/shortcuts_dialog.rb` | no |
+| `shell/main.c` | support | `exe/gnome-control-center` | yes (entry point, not a `lib/` component) |
 
-## search-provider/ — Shell search provider (D-Bus service)
+`lib/gnome_control_center/system_info.rb` has no single upstream counterpart
+— it is this port's substitute for the overview rows upstream reads from
+`gnome-desktop`/`libgtop`/GPU enumeration inside `panels/system/about/
+cc-about-page.c` and `panels/system/cc-system-page.c`, documented as such in
+its own header comment (see `lib/gnome_control_center/panels/about_panel.rb`
+and `system_info.rb`'s class comment for exactly what is substituted).
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+## global-shortcuts-provider/ — standalone D-Bus service (2 components)
+
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `search-provider/cc-search-provider.c/.h` | client/service (implements `org.gnome.ShellSearchProvider2`; answers GNOME Shell's overview search with matching panels) | `lib/search_provider/search_provider.rb` | No |
-| `search-provider/control-center-search-provider.c/.h` | widget/helper (binary entry point for the provider service) | `lib/search_provider/main.rb` | No |
-| `search-provider/org.gnome.ShellSearchProvider2.xml` | D-Bus interface definition (not a component) | — | No |
-| `search-provider/org.gnome.Settings.search-provider.ini`, `.service.in` | D-Bus/search-provider registration (packaging) | — | No |
+| `global-shortcuts-provider/cc-global-shortcut-dialog.blp, global-shortcuts-provider/cc-global-shortcut-dialog.c, global-shortcuts-provider/cc-global-shortcut-dialog.h` | dialog | `lib/global_shortcuts_provider/global_shortcut_dialog.rb` | no |
+| `global-shortcuts-provider/cc-global-shortcuts-provider.c, global-shortcuts-provider/cc-global-shortcuts-provider.h, global-shortcuts-provider/control-center-global-shortcuts-provider.c, global-shortcuts-provider/control-center-global-shortcuts-provider.h` | support | `lib/global_shortcuts_provider/provider.rb` | no |
 
-## global-shortcuts-provider/ — Global shortcuts D-Bus service
+This is upstream's separate `org.gnome.Settings.GlobalShortcutsProvider`
+D-Bus service binary, built from its own `.xml` interface
+(`global-shortcuts-provider/org.gnome.Settings.GlobalShortcutsProvider.service.in`).
+It is out of process from the main shell; whether it is in scope for this
+port (vs. the keyboard panel's shortcut *editor*, which is a different,
+in-process component under `panels/keyboard/`) is a scoping call for
+whoever picks up the keyboard-shortcuts component.
 
-| Upstream file(s) | Kind | lib/*.rb path | Exists? |
+## search-provider/ — Shell search provider, standalone D-Bus service (2 components)
+
+| Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
-| `global-shortcuts-provider/cc-global-shortcut-dialog.blp`, `.c/.h` | dialog (asks the user to confirm/bind a requested global shortcut) | `lib/global_shortcuts_provider/global_shortcut_dialog.rb` | No |
-| `global-shortcuts-provider/cc-global-shortcuts-provider.c/.h` | manager/service (implements `org.gnome.GlobalShortcutsProvider`, used by the portal) | `lib/global_shortcuts_provider/global_shortcuts_provider.rb` | No |
-| `global-shortcuts-provider/control-center-global-shortcuts-provider.c/.h` | widget/helper (binary entry point) | `lib/global_shortcuts_provider/main.rb` | No |
-| `global-shortcuts-provider/org.gnome.GlobalShortcutsProvider.xml` | D-Bus interface definition (not a component) | — | No |
+| `search-provider/cc-search-provider.c, search-provider/cc-search-provider.h` | support | `lib/search_provider/search_provider.rb` | no |
+| `search-provider/control-center-search-provider.c, search-provider/control-center-search-provider.h` | support | `lib/search_provider/main.rb` | no |
 
-## GSettings schemas
+Implements `org.gnome.ShellSearchProvider2` (interface in
+`search-provider/org.gnome.ShellSearchProvider2.xml`), registered via
+`search-provider/org.gnome.Settings.search-provider.ini` and
+`org.gnome.Settings.SearchProvider.service.in`. Out-of-process from the main
+shell binary, same as `global-shortcuts-provider/` above; not yet ported.
 
-One schema file upstream-wide: `shell/org.gnome.Settings.gschema.xml` (shell
-window/last-panel state). Individual panels read other apps'/daemons'
-schemas (e.g. `org.gnome.desktop.*`, `org.gnome.SettingsDaemon.*`) rather
-than defining their own — none of those is a component to inventory here,
-but each ported panel that reads one needs the matching schema installed in
-the dev shell for `Gio::Settings` to resolve it.
+## GSettings schemas (1)
 
-## GResource manifests
+| Upstream file | covers | exists in `ruby`? |
+|---|---|---|
+| `shell/org.gnome.Settings.gschema.xml` | shell-level prefs: last-visited panel, window geometry | no schema file under `ruby` yet |
 
-Every panel directory has its own `<panel>.gresource.xml` bundling that
-panel's `.blp`-compiled `.ui` + icons; `shell/gnome-control-center.gresource.xml.in`
-bundles the shell's. These have no Ruby port equivalent by house style (the
-port builds widgets in code, never loads `.ui` at runtime), so they are
-listed above only where relevant and otherwise excluded from the per-panel
-tables.
+Per-panel schemas live in `gsettings-desktop-schemas` (external, not in this
+repo) except where a panel ships its own, e.g.
+`panels/keyboard/50-accessibility.xml.in` and the `00/01-*.xml.in` keybinding
+schemas, and `panels/system/users/data/*.xml` (Fprint/realmd D-Bus
+interfaces, not GSettings). None of those are GSettings schemas either —
+upstream's only true `.gschema.xml` is the shell one above.
+
+## GResource manifests (24, one per panel + shell + global-shortcuts-provider)
+
+Every panel directory (and `shell/`, and `global-shortcuts-provider/`) has
+its own `<name>.gresource.xml[.in]` bundling that component's `.ui`
+files/icons into the compiled binary. The Ruby port has no `.ui` files by
+house style (widgets are built declaratively in code — see the `ruby-gtk`
+skill) and therefore needs no GResource step; each manifest's *content* is
+already covered by the panel rows above (every `.ui`/`.blp` it lists is its
+own row), so these 24 files are build plumbing with no `lib/` counterpart,
+not a missing component.
 
 ## po/ catalogue
 
-116 upstream files: `po/LINGUAS`, `po/POTFILES.in`, `po/POTFILES.skip`, and
-~113 `<lang>.po` translation files. `po/POTFILES.in` is the list of upstream
-source files with translatable strings — it is the authoritative check, once
-porting starts, for which user-facing strings a panel owns. No translation
-infrastructure exists in `lib/` yet; out of scope for this survey beyond
-noting it needs its own pass (see the `translation-parity` skill) once panels
-exist to translate.
+`po/LINGUAS` (116 locale `.po` files), `po/POTFILES.in`, `po/POTFILES.skip`.
+Upstream is internationalized via gettext; this fork has no `po/` directory
+and no i18n story yet (`gettext`/`FastGettext` wiring, a `POTFILES`-equivalent
+list of translatable strings, and locale files) — tracked here as a gap for
+whichever pass does `translation-parity`, not attempted in this survey.
 
-## Not covered by this pass
+## Totals
 
-- `tests/`, `subprojects/` (gnome-desktop, ibus submodules vendored for build) — not user-facing components.
-- `build-aux/`, `.gitlab-ci/`, `man/`, `docs/` — build/CI/doc, not UI.
-- Per-panel `.desktop.in` launchers and `.policy.in` PolicyKit actions — packaging/privilege concerns, not widgets; each should be read when the panel that needs them is ported (several panels, e.g. `system/users`, `system/datetime`, `system/remote-desktop`, `system/secure-shell`, shell out through policy-gated D-Bus calls that the port must still honor, just not as a UI component).
-- Panel `.gresource.xml` files and compiled `.ui` (superseded by `.blp` sources already listed).
+- **panels/**: 282 components across 23 panel directories (`applications`,
+  `background`, `bluetooth`, `color`, `common`, `display`, `keyboard`,
+  `mouse`, `multitasking`, `network`, `notifications`, `online-accounts`,
+  `power`, `printers`, `privacy`, `search`, `sharing`, `sound`, `system`,
+  `universal-access`, `wacom`, `wellbeing`, `wwan`). 5 already exist in
+  `lib/`: the panel-shaped `panels/system/about/cc-about-page.c` (ported as
+  `lib/gnome_control_center/panels/about_panel.rb`), the two shared utility
+  files `panels/common/cc-ui-util.*` / `cc-util.*`
+  (`lib/panels/common/ui_util.rb` / `util.rb`), and the two enum headers
+  `panels/sharing/gsd-sharing-enums.h` / `panels/sound/cc-sound-enums.h`.
+- **shell/**: 9 components, 6 already in `lib/gnome_control_center/`
+  (`application`, `panel`, `panel_list`, `panel_loader`, `shell_model`,
+  `window`); `main.c` is covered by `exe/gnome-control-center`; `cc-log.c`,
+  `cc-object-storage.c` and `shortcuts-dialog.blp` are not yet ported.
+- **global-shortcuts-provider/**: 2 components, 0 in `lib/`.
+- **search-provider/**: 2 components, 0 in `lib/`.
+- 1 GSettings schema not yet ported.
+- 24 GResource manifests: build plumbing, already covered by the panel/shell
+  rows above, no separate `lib/` work needed.
+- `po/` catalogue (116 locales): no i18n story on `ruby` yet.
 
-## Next step
+**Overall: ~297 upstream components identified, 11 already represented in
+`lib/` (3.7%).** The 11 are one genuinely-ported panel (`AboutPanel`, backed
+by the invented `system_info.rb`, standing in for
+`panels/system/about/cc-about-page.c`), 6 pieces of shell infrastructure
+(`application`, `panel`, `panel_list`, `panel_loader`, `shell_model`,
+`window`), 2 shared utility files, and 2 enum headers. All 22 other panels'
+substantive UI (the panel bodies themselves, and every row/dialog/page/view/
+editor under them), both standalone D-Bus service binaries
+(`search-provider/`, `global-shortcuts-provider/`), the shell gschema and
+i18n catalogue remain to be ported.
 
-The shell unit (`shell/` table above) and the About panel are now partially
-ported — `cc-object-storage.c/.h`, `cc-log.c/.h` and the shortcuts dialog
-remain. Run a component-parity pass on the shell + About panel to confirm
-what exists matches upstream widget-for-widget, then pick the next unit:
-either finish the remaining shell pieces, or start a small, self-contained
-panel like `multitasking` or `mouse` to extend the house-style pattern,
-before writing any further widget code.
+Biggest panels by component count: `network` (48), `system` (40),
+`common` (26, shared infrastructure used by every panel), `privacy` (22),
+`printers` (20), `wacom` (17), `keyboard` (16), `sound` (15).
+
+## Note on an earlier version of this inventory
+
+An earlier commit on `ruby` (`7d61d9e3e`) proposed `lib/panels/<panel>/
+<name>_panel.rb` uniformly, including for panel-shaped components. That
+conflicts with what was actually committed for `About` —
+`lib/gnome_control_center/panels/about_panel.rb` — which this version follows
+instead: panel-shaped components (upstream `*-panel.c`, or a page standing in
+for one, like `cc-about-page.c`) go to `lib/gnome_control_center/panels/`,
+everything else to `lib/panels/<panel>/`. Whoever ports the next panel should
+settle this one way and update this file's proposed paths to match.
