@@ -103,12 +103,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency("gtk4")
   spec.add_dependency("adwaita")
   spec.add_dependency("glib2")
-  spec.add_dependency("colord")
-  spec.add_dependency("gcr-rb")
-  spec.add_dependency("gnome_desktop")
-  spec.add_dependency("goa-rb")
   spec.add_dependency("gudev")
-  spec.add_dependency("ibus")
   # NOTE: libgtop is deliberately NOT a dependency. Its typelib loads, but
   # every one of its functions is unusable: libgtop's GIR records are
   # lowercase (`glibtop_get_sysinfo`, `glibtop_mem`, ...) and ruby-gnome
@@ -117,11 +112,18 @@ Gem::Specification.new do |spec|
   # /proc/cpuinfo and /proc/meminfo directly instead — the same source
   # libgtop itself reads on Linux — rather than carrying a dependency
   # nothing can call.
-  spec.add_dependency("malcontent")
-  spec.add_dependency("polkit")
-  spec.add_dependency("soup3")
   spec.add_dependency("udisks")
-  spec.add_dependency("upower-glib")
+  # NOTE: colord, gcr-rb, gnome_desktop, goa-rb, ibus, malcontent, polkit,
+  # soup3 and upower-glib are deliberately NOT dependencies right now, even
+  # though upstream's C code uses every one of them. Each is used upstream
+  # only inside a panel this Ruby port has not built yet (colord: color;
+  # gcr: system/remote-desktop + wwan; gnome_desktop/goa/ibus/malcontent/
+  # polkit: region, online-accounts, user-accounts, datetime; soup3: the
+  # snap client in panels/applications). `lib/` currently requires neither
+  # the gem nor its underlying library, so declaring it here would be a
+  # dependency nothing calls. Re-add each one (upower-glib included —
+  # nothing under lib/ reads battery/power-profile state yet either) in
+  # the same commit that builds the panel that calls it.
 
   # NOTE: It is preferable to list development dependencies in the gemspec due to increased
   #       visibility and discoverability.

@@ -43,17 +43,6 @@
     };
     version = "4.4.0";
   };
-  colord = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "07imy22sk5cx7724pg6c9q1bvj82h5jq4m864rjk2x66zk24604h";
-      type = "gem";
-    };
-    version = "1.0.0";
-  };
   fiddle = {
     groups = ["default"];
     platforms = [];
@@ -63,17 +52,6 @@
       type = "gem";
     };
     version = "1.1.8";
-  };
-  gcr-rb = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "1h9h0ham3ys8g3sr7p5j52rgzb1k4cg1v3kdag7ak9jyf0as3laf";
-      type = "gem";
-    };
-    version = "1.0.0";
   };
   gdk4 = {
     dependencies = ["cairo-gobject" "gdk_pixbuf2" "pango" "rake"];
@@ -128,28 +106,6 @@
       type = "gem";
     };
     version = "4.4.0";
-  };
-  gnome_desktop = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "1zn7mljvavjvwq11kprwfzmyycvni7178s0316q98hhk29l3hz9r";
-      type = "gem";
-    };
-    version = "1.0.0";
-  };
-  goa-rb = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "0rdvzhd2hih0yg9mc7bzxl508yp573rsqlj056g6yahj099sps3h";
-      type = "gem";
-    };
-    version = "1.0.0";
   };
   gobject-introspection = {
     dependencies = ["glib2"];
@@ -206,17 +162,6 @@
     };
     version = "1.0.0";
   };
-  ibus = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "130w1pwgr6i3k7jy01s97qh16zg2xw9327igslqp3q2wnfa825cd";
-      type = "gem";
-    };
-    version = "1.0.0";
-  };
   json = {
     groups = ["default"];
     platforms = [];
@@ -226,17 +171,6 @@
       type = "gem";
     };
     version = "3.1.0";
-  };
-  malcontent = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "07qdgghh1aw1n11lzzq6pl61qrm80p78h2fmxn0xdmz53hx3dg4r";
-      type = "gem";
-    };
-    version = "1.0.0";
   };
   matrix = {
     groups = ["default"];
@@ -279,17 +213,6 @@
     };
     version = "1.6.7";
   };
-  polkit = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "07kl227bhjgmxw7yl1jg4h2b9xm83nwwwjbsyv5sn1q7i70g87nl";
-      type = "gem";
-    };
-    version = "1.0.0";
-  };
   rake = {
     groups = ["default"];
     platforms = [];
@@ -311,17 +234,6 @@
     };
     version = "0.5.0";
   };
-  soup3 = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "1n48kwwgvra4055di6cz1xw2izvn3gajalc8wprbbis4a96dyz2n";
-      type = "gem";
-    };
-    version = "1.0.0";
-  };
   udisks = {
     dependencies = ["gem_kit" "gobject-introspection"];
     groups = ["default"];
@@ -332,16 +244,5 @@
       type = "gem";
     };
     version = "1.0.0";
-  };
-  upower-glib = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "1bbqs9wxayhlgcj6iphhr065fh4vrizaymg17qm8r76qjx24r712";
-      type = "gem";
-    };
-    version = "1.0.1";
   };
 }

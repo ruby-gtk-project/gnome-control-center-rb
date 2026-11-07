@@ -27,20 +27,15 @@
           librsvg
 
           # Binding gems' typelibs (see each gem's README for the mapping).
-          # malcontent is deliberately absent here: its typelib lives in the
-          # non-default `.lib` output, and running it through this list's
-          # `.out`-or-self mapping below would silently redirect back to the
-          # default output and lose it — it is added to typelibPath by hand.
-          colord
-          gcr_4
-          gnome-desktop
-          gnome-online-accounts
+          # Only libgudev and udisks2 are listed: those are the only two
+          # binding gems lib/ actually requires right now (system_info.rb).
+          # colord, gcr_4, gnome-desktop, gnome-online-accounts, ibus,
+          # malcontent, polkit, libsoup_3 and upower are upstream
+          # dependencies of panels this Ruby port has not built yet; add
+          # each back in the same commit that builds the panel that needs
+          # it (see the gemspec's NOTE next to `spec.add_dependency`).
           libgudev
-          ibus
-          polkit
-          libsoup_3
           udisks2
-          upower
         ]
         # The Ruby `pkg-config` gem resolves `Requires.private` transitively and
         # hard-fails if any .pc in the chain is missing, so gtk4's whole private
@@ -109,12 +104,12 @@
         # first output is `bin`, which carries no typelibs — hence the explicit
         # `.out`. at-spi2-core is here for the Atk typelib.
         #
-        # malcontent's typelib lives in its `.lib` output, not `.out`, so it is
-        # appended by hand rather than going through the `.out`-or-self map,
-        # which would silently redirect it back to the (typelib-less) default
-        # output.
+        # malcontent is not added here: lib/ does not require the malcontent
+        # gem (see the gemspec's NOTE), so there is nothing that would look
+        # up its typelib. Add it back (from its `.lib` output, not `.out`)
+        # in the same commit that makes lib/ require "malcontent".
         typelibPath = pkgs.lib.makeSearchPath "lib/girepository-1.0"
-          (map (drv: drv.out or drv) (gtkStack ++ [ pkgs.at-spi2-core ]) ++ [ pkgs.malcontent.lib ]);
+          (map (drv: drv.out or drv) (gtkStack ++ [ pkgs.at-spi2-core ]));
 
         # nix/ and not the repo root: the root Gemfile is kettle-jem's
         # development bundle — rubocop, rspec, yard, the kettle-dev stack — and

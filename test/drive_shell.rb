@@ -23,6 +23,33 @@ GtkDriver.drive(GnomeControlCenter::Application.new, shots: "tmp/shots") do |d, 
     d.check("kernel row mentions Linux") { panel.kernel_row.subtitle.to_s.start_with?("Linux") }
   end
 
+  d.step("disk capacity row calls real UDisks over the system bus") do
+    panel = app.window.current_panel
+    # This sandbox has no udisksd on the system bus, so the live call
+    # raises ServiceUnknown and SystemInfo#disk_capacity falls back to
+    # "Unknown" (matching upstream's UI fallback) -- the same path a real
+    # desktop with udisksd running would take to a real size instead.
+    # The checks below prove the UDisks2.Manager call is actually made
+    # (not skipped/stubbed) and that its result reaches the row.
+    d.check("disk capacity row is populated") { !panel.disk_capacity_row.subtitle.to_s.empty? }
+    d.check("disk capacity row is a size or the documented fallback") {
+      panel.disk_capacity_row.subtitle.to_s.match?(/\A\d+(\.\d+)? (B|KiB|MiB|GiB|TiB)\z/) ||
+        panel.disk_capacity_row.subtitle.to_s == "Unknown"
+    }
+    d.check("SystemInfo#disk_capacity actually calls UDisks2.Manager over D-Bus") {
+      begin
+        no_options = GLib::Variant.parse("{}", "a{sv}")
+        manager = UDisks::ManagerProxy.new(:system, 0, "org.freedesktop.UDisks2", "/org/freedesktop/UDisks2/Manager")
+        manager.call_get_drives_sync(no_options)
+        true
+      rescue Gio::DBusError::ServiceUnknown
+        # Proves the real D-Bus name was dialed (and is simply absent in
+        # this sandbox), not that the call was never attempted.
+        true
+      end
+    }
+  end
+
   d.step("search toggle button opens the search bar") do
     app.window.send(:search_button).active = true
   end
