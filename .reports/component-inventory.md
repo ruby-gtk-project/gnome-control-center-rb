@@ -7,17 +7,32 @@ Port: this fork's `ruby` branch.
 
 ## State of the port
 
-`lib/` on `ruby` currently holds only the gem skeleton:
+This inventory was first written when `lib/` held only the gem skeleton
+(`lib/gnome_control_center.rb`, `lib/gnome_control_center/application.rb`,
+`lib/gnome/control/center/rb/version.rb`). Since then the shell has been
+ported:
 
 ```
 lib/gnome_control_center.rb
 lib/gnome_control_center/application.rb
+lib/gnome_control_center/window.rb
+lib/gnome_control_center/panel.rb
+lib/gnome_control_center/panel_list.rb
+lib/gnome_control_center/panel_loader.rb
+lib/gnome_control_center/shell_model.rb
+lib/gnome_control_center/system_info.rb
+lib/gnome_control_center/panels/about_panel.rb
 lib/gnome/control/center/rb/version.rb
 ```
 
-None of the 24 panels, the shell window, the two D-Bus service providers
-(search-provider, global-shortcuts-provider), or any dialog/row/page widget
-exists yet. Every row below is "No" under Exists.
+That covers the shell proper (window, base panel class, sidebar list, panel
+registry, the list model backing it) and one panel — About, rolled into the
+shell rather than treated as a page inside a not-yet-ported `system_panel`.
+`cc-object-storage.c/.h`, `cc-log.c/.h` and the shortcuts dialog inside
+`shell/` are not yet ported (see the `shell/` table below for the row-by-row
+state), and of the 24 panels, 23 still have zero files under `lib/` — every
+row for them below is still "No" under Exists. The two D-Bus service
+providers (search-provider, global-shortcuts-provider) are also still "No".
 
 ## Scope and method
 
@@ -32,7 +47,12 @@ to the component-parity check done per unit when a panel is actually ported
 
 Totals: 24 panels, 278 distinct upstream component files (excluding build
 files, desktop launchers, D-Bus interface XML, policy files, and the
-po-timezones translation catalogue), 0 ported.
+po-timezones translation catalogue), plus the separate 10-row shell/
+table. As of this update: 1 of the 278 panel-scoped components ported
+(the About page, as its own panel rather than a page inside
+`cc-system-panel`), 5 of 10 shell rows ported (window, panel, panel_list,
+panel_loader, shell_model; cc-application.c/.h and shell/main.c partially
+via `application.rb`), the two D-Bus service providers still unported.
 
 Kind legend: `panel` (top-level Adw view for one settings panel), `page`
 (a sub-view pushed inside a panel, usually via Adw.NavigationView), `dialog`,
@@ -341,9 +361,9 @@ not yet acted on.
 
 | Upstream file(s) | Kind | lib/*.rb path | Exists? |
 |---|---|---|---|
-| `about/cc-about-page.blp, about/cc-about-page.c, about/cc-about-page.h` | page | `lib/panels/system/about_cc_about_page.rb` | No |
-| `about/gnome-control-center-print-renderer.c` | widget/helper | `lib/panels/system/about_gnome_control_center_print_renderer.rb` | No |
-| `about/info-cleanup.c, about/info-cleanup.h` | widget/helper | `lib/panels/system/about_info_cleanup.rb` | No |
+| `about/cc-about-page.blp, about/cc-about-page.c, about/cc-about-page.h` | page | `lib/gnome_control_center/panels/about_panel.rb` | Yes — upstream models About as a page inside `cc-system-panel`; the port instead gives it its own top-level panel entry (`lib/gnome_control_center/panels/about_panel.rb`), registered directly in `panel_loader.rb` ahead of `system_panel.rb` existing |
+| `about/gnome-control-center-print-renderer.c` | widget/helper | `lib/gnome_control_center/panels/about_gnome_control_center_print_renderer.rb` | No |
+| `about/info-cleanup.c, about/info-cleanup.h` | widget/helper | folded into `lib/gnome_control_center/system_info.rb` | Yes — ported as part of `SystemInfo`, not a separate file |
 | `cc-password-utils.c, cc-password-utils.h` | widget/helper | `lib/panels/system/password_utils.rb` | No |
 | `cc-system-panel.blp, cc-system-panel.c, cc-system-panel.h` | panel | `lib/panels/system/system_panel.rb` | No |
 | `cc-systemd-service.c, cc-systemd-service.h` | widget/helper | `lib/panels/system/systemd_service.rb` | No |
@@ -452,16 +472,16 @@ before or alongside the first panel.
 
 | Upstream file(s) | Kind | lib/*.rb path | Exists? |
 |---|---|---|---|
-| `shell/cc-application.c/.h` | manager/service (Adw.Application subclass: actions, accelerators, About) | `lib/shell/application.rb` | No (superseded by the gem's own `lib/gnome_control_center/application.rb` skeleton — needs the real actions/menu/About wiring) |
-| `shell/cc-window.blp`, `cc-window.c/.h` | window (main `Adw.ApplicationWindow`: header bar, search, sidebar + content `Adw.NavigationSplitView`) | `lib/shell/window.rb` | No |
-| `shell/cc-panel.blp`, `cc-panel.c/.h` | widget/helper (base class every panel subclasses) | `lib/shell/panel.rb` | No |
-| `shell/cc-panel-list.blp`, `cc-panel-list.c/.h` | widget (sidebar list of panels, category headers, search filtering) | `lib/shell/panel_list.rb` | No |
-| `shell/cc-panel-loader.c/.h` | manager/service (maps panel id → GType, lazy-loads panel modules) | `lib/shell/panel_loader.rb` | No |
-| `shell/cc-shell-model.c/.h` | model/config (GListModel of panel entries backing the sidebar) | `lib/shell/shell_model.rb` | No |
-| `shell/cc-object-storage.c/.h` | widget/helper (cache of long-lived GObjects, e.g. GDBusProxies) | `lib/shell/object_storage.rb` | No |
-| `shell/cc-log.c/.h` | widget/helper (debug logging) | `lib/shell/log.rb` | No |
-| `shell/shortcuts-dialog.blp` | dialog (standalone `.blp` with no backing source file — a `Gtk.ShortcutsWindow`) | `lib/shell/shortcuts_dialog.rb` | No |
-| `shell/main.c` | widget/helper (process entry point) | `lib/gnome_control_center/application.rb` (merge into existing entry point) | Partial — entry point exists but holds none of this logic |
+| `shell/cc-application.c/.h` | manager/service (Adw.Application subclass: actions, accelerators, About) | `lib/gnome_control_center/application.rb` | Partial — wires window, panel loader, shell model and the About panel; accelerators/full action set still to confirm against upstream |
+| `shell/cc-window.blp`, `cc-window.c/.h` | window (main `Adw.ApplicationWindow`: header bar, search, sidebar + content `Adw.NavigationSplitView`) | `lib/gnome_control_center/window.rb` | Yes |
+| `shell/cc-panel.blp`, `cc-panel.c/.h` | widget/helper (base class every panel subclasses) | `lib/gnome_control_center/panel.rb` | Yes |
+| `shell/cc-panel-list.blp`, `cc-panel-list.c/.h` | widget (sidebar list of panels, category headers, search filtering) | `lib/gnome_control_center/panel_list.rb` | Yes |
+| `shell/cc-panel-loader.c/.h` | manager/service (maps panel id → GType, lazy-loads panel modules) | `lib/gnome_control_center/panel_loader.rb` | Yes — currently registers only the `about` panel; the other 23 panel ids still to add as each panel is ported |
+| `shell/cc-shell-model.c/.h` | model/config (GListModel of panel entries backing the sidebar) | `lib/gnome_control_center/shell_model.rb` | Yes |
+| `shell/cc-object-storage.c/.h` | widget/helper (cache of long-lived GObjects, e.g. GDBusProxies) | `lib/gnome_control_center/object_storage.rb` | No |
+| `shell/cc-log.c/.h` | widget/helper (debug logging) | `lib/gnome_control_center/log.rb` | No |
+| `shell/shortcuts-dialog.blp` | dialog (standalone `.blp` with no backing source file — a `Gtk.ShortcutsWindow`) | `lib/gnome_control_center/shortcuts_dialog.rb` | No |
+| `shell/main.c` | widget/helper (process entry point) | `lib/gnome_control_center/application.rb` (merged into the existing entry point) | Yes |
 | `shell/org.gnome.Settings.gschema.xml` | GSettings schema (not a component; last-panel memory, window size, etc.) | — define as a `.gschema.xml` resource the gem installs, not a `.rb` file | No |
 | `shell/gnome-control-center.gresource.xml.in` | GResource manifest (not a component; bundles shell/style.css + shell .ui) | — n/a to a Ruby port, which builds widgets in code | No |
 | `shell/style.css` | stylesheet (defines/overrides CSS classes referenced by shell and panel widgets) | ship as a resource file, not `.rb` | No |
@@ -522,8 +542,10 @@ exist to translate.
 
 ## Next step
 
-Pick one unit (the skill's own guidance: start with `shell/` since every
-panel plugs into it, or with a small, self-contained panel like
-`multitasking` or `mouse` to get the house-style pattern established) and
-run the full component-identification + component-parity pass on just that
-unit before writing any widget code.
+The shell unit (`shell/` table above) and the About panel are now partially
+ported — `cc-object-storage.c/.h`, `cc-log.c/.h` and the shortcuts dialog
+remain. Run a component-parity pass on the shell + About panel to confirm
+what exists matches upstream widget-for-widget, then pick the next unit:
+either finish the remaining shell pieces, or start a small, self-contained
+panel like `multitasking` or `mouse` to extend the house-style pattern,
+before writing any further widget code.
