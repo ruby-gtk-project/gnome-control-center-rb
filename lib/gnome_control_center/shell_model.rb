@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "../panels/common/util"
+
 module GnomeControlCenter
   # ShellModel lists every panel the shell knows about — its category, id,
   # display metadata and search visibility — and knows how to sort and
@@ -106,11 +108,7 @@ module GnomeControlCenter
     # casefold, then drop combining diacritical marks and the soft hyphen so
     # accented search terms match their unaccented panel names.
     def self.normalize_casefold_and_unaccent(str)
-      if str.nil?
-        nil
-      else
-        str.unicode_normalize(:nfkd).downcase.gsub(/[̀-ͯ­]/, "")
-      end
+      Panels::Common::Util.normalize_casefold_and_unaccent(str)
     end
 
     private
