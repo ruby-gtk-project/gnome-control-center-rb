@@ -37,7 +37,6 @@
           gnome-online-accounts
           libgudev
           ibus
-          libgtop
           polkit
           libsoup_3
           udisks2

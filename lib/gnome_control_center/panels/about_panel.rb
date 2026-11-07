@@ -12,11 +12,11 @@ module GnomeControlCenter
     #
     # Ported from upstream's panels/system/about/cc-about-page.c, trimmed to
     # the overview rows SystemInfo can answer for this round (see that
-    # class's comment for what's substituted and what's left out — disk
-    # capacity, GPU rows, the "copy details" action and the distributor
-    # logo). Rows are always shown, with "Unknown" standing in for data this
-    # round could not get, rather than toggling row visibility as upstream
-    # does — this port never hides a field because its value is empty.
+    # class's comment for what's substituted and what's left out — GPU
+    # rows, the "copy details" action and the distributor logo). Rows are
+    # always shown, with "Unknown" standing in for data this round could
+    # not get, rather than toggling row visibility as upstream does — this
+    # port never hides a field because its value is empty.
     class AboutPanel < Panel
       def initialize(window, subpage_tag: nil)
         @info = SystemInfo.new
@@ -64,6 +64,7 @@ subpage_tag: subpage_tag
           group.add(firmware_version_row)
           group.add(memory_row)
           group.add(processor_row)
+          group.add(disk_capacity_row)
         end
       end
 
@@ -81,6 +82,7 @@ subpage_tag: subpage_tag
       def firmware_version_row = @firmware_version_row ||= info_row("Firmware Version", @info.firmware_version)
       def memory_row = @memory_row ||= info_row("Memory", @info.memory)
       def processor_row = @processor_row ||= info_row("Processor", @info.processor)
+      def disk_capacity_row = @disk_capacity_row ||= info_row("Disk Capacity", @info.disk_capacity)
       def os_name_row = @os_name_row ||= info_row("OS Name", @info.os_name)
       def os_build_row = @os_build_row ||= info_row("OS Build", @info.os_build)
       def os_type_row = @os_type_row ||= info_row("OS Type", @info.os_type)

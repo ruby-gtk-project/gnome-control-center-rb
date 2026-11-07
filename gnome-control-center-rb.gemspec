@@ -109,7 +109,14 @@ Gem::Specification.new do |spec|
   spec.add_dependency("goa-rb")
   spec.add_dependency("gudev")
   spec.add_dependency("ibus")
-  spec.add_dependency("libgtop")
+  # NOTE: libgtop is deliberately NOT a dependency. Its typelib loads, but
+  # every one of its functions is unusable: libgtop's GIR records are
+  # lowercase (`glibtop_get_sysinfo`, `glibtop_mem`, ...) and ruby-gnome
+  # resolves argument types by the raw GI name, so every call into it
+  # raises NameError regardless of platform. system_info.rb reads
+  # /proc/cpuinfo and /proc/meminfo directly instead — the same source
+  # libgtop itself reads on Linux — rather than carrying a dependency
+  # nothing can call.
   spec.add_dependency("malcontent")
   spec.add_dependency("polkit")
   spec.add_dependency("soup3")

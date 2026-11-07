@@ -59,9 +59,6 @@ GEM
       gem_kit (~> 0.2)
       gobject-introspection (~> 4.3)
     json (3.1.0)
-    libgtop (1.1.0)
-      gem_kit (~> 0.2)
-      gobject-introspection (~> 4.3)
     malcontent (1.0.0)
       gem_kit (~> 0.2)
       gobject-introspection (~> 4.3)
@@ -102,7 +99,6 @@ DEPENDENCIES
   gtk4
   gudev
   ibus
-  libgtop
   malcontent
   polkit
   soup3

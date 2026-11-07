@@ -2,7 +2,9 @@
 
 require "etc"
 require "glib2"
+require "gio2"
 require "gudev"
+require "udisks"
 
 module GnomeControlCenter
   # SystemInfo gathers the hardware and software facts the About page shows:
@@ -30,12 +32,21 @@ module GnomeControlCenter
   #     reports the running kernel's machine architecture instead, which is
   #     the practical equivalent for a script-language port.
   #
-  # Upstream's primary-disk-capacity figure (via UDisksClient) is left out
-  # of this round: udisks's Ruby binding loads and exposes the UDisks
-  # namespace, but UDisks::Client#object_manager itself raises
-  # (GI_IS_OBJECT_INFO assertion failure) in this environment, independent
-  # of whether udisksd is even running, so there is no reliable value to
-  # show yet.
+  # Upstream's primary-disk-capacity figure (get_primary_disk_info) goes
+  # through UDisksClient's GDBusObjectManager (udisks_client_get_object_manager
+  # + g_dbus_object_manager_get_objects), summing non-removable drives'
+  # sizes. That path is NOT callable through this binding: UDisks::Client's
+  # #object_manager (and UDisks::ObjectManagerClient#get_object/get_interface)
+  # raise `g_object_info_get_ref_function_pointer: assertion
+  # 'GI_IS_OBJECT_INFO (info)' failed`, independent of whether udisksd is
+  # running — gobject-introspection cannot resolve the dynamically-typed
+  # GDBusObject/GDBusInterface return values this API relies on. Instead,
+  # #disk_capacity below calls org.freedesktop.UDisks2.Manager directly
+  # through a plain UDisks::ManagerProxy (a generated GDBusProxy, whose
+  # methods have concrete typed signatures the binding CAN resolve) and
+  # resolves each returned drive object path with UDisks::DriveProxy. This
+  # is real UDisks usage, not a workaround: it is the same D-Bus interface
+  # upstream's libudisks2 itself calls underneath udisks_client_new_sync.
   class SystemInfo
     def initialize
       @dmi = GUdev::Client.new(["dmi"]).query_by_sysfs_path("/sys/class/dmi/id")
@@ -104,7 +115,35 @@ module GnomeControlCenter
       kib ? format_size_iec(kib.to_i * 1024) : "Unknown"
     end
 
+    # Upstream's get_primary_disk_info: the summed size of every drive that
+    # is neither removable nor ejectable, queried through
+    # org.freedesktop.UDisks2.Manager over the system bus (see the class
+    # comment for why this goes through UDisks::ManagerProxy rather than
+    # UDisks::Client). Returns "Unknown" when udisksd is not reachable or no
+    # matching drive is found, matching upstream's UI fallback.
+    def disk_capacity
+      total = udisks_drives.sum { |drive|
+        (!drive.removable? && !drive.ejectable?) ? drive.size : 0
+      }
+      total > 0 ? format_size_iec(total) : "Unknown"
+    rescue
+      "Unknown"
+    end
+
     private
+
+      # org.freedesktop.UDisks2.Manager.GetDrives, resolved to live
+      # UDisks::DriveProxy instances. `{}` is UDisks2's `(a{sv})` options
+      # parameter — always empty for this call.
+      def udisks_drives
+        no_options = GLib::Variant.parse("{}", "a{sv}")
+        manager = UDisks::ManagerProxy.new(:system, 0, "org.freedesktop.UDisks2", "/org/freedesktop/UDisks2/Manager")
+        manager.call_get_drives_sync(no_options).map { |path|
+          UDisks::DriveProxy.new(:system, 0, "org.freedesktop.UDisks2", path)
+        }
+      rescue
+        []
+      end
 
       def dmi_attr(name)
         value = @dmi&.then { |device| device.has_sysfs_attr?(name) ? device.get_sysfs_attr(name) : nil }

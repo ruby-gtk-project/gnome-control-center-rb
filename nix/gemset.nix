@@ -227,17 +227,6 @@
     };
     version = "3.1.0";
   };
-  libgtop = {
-    dependencies = ["gem_kit" "gobject-introspection"];
-    groups = ["default"];
-    platforms = [];
-    source = {
-      remotes = ["https://rubygems.org"];
-      sha256 = "1jz8mlmma013hd2zh0m8vd1ibmgkd72mcsis9z63jzjinrf75aiz";
-      type = "gem";
-    };
-    version = "1.1.0";
-  };
   malcontent = {
     dependencies = ["gem_kit" "gobject-introspection"];
     groups = ["default"];
