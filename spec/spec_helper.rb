@@ -20,11 +20,33 @@ rescue LoadError => error
 end
 
 # External RSpec & related config
-require "kettle/test/rspec"
-# `kettle/test/rspec` installs harness helpers documented in spec/README.md.
+begin
+  require "kettle/test/rspec"
+  # `kettle/test/rspec` installs harness helpers documented in spec/README.md.
+rescue LoadError => error
+  # The kettle-test bundle is a development dependency and is not always
+  # installed — `nix develop` carries the app's runtime gems plus rspec, and
+  # nothing else. A missing harness is worth noting and not worth failing
+  # over; anything that genuinely needs a helper from it will fail on the
+  # helper, which says so far more clearly than a LoadError in spec_helper.
+  unless error.message.include?("kettle")
+    raise error
+  end
 
-# This library
-require "gnome/control/center/rb"
+  warn("NOTE: kettle-test isn't installed; running with plain RSpec.")
+end
+
+# This library.
+#
+# gnome_control_center.rb pulls in gnome_control_center/application, which
+# requires gtk4/adwaita and raises Gtk::InitError where there is no display
+# (as here — this spec run has none). Only the display-free half — the
+# models and data gatherers specs can exercise without a widget — is loaded
+# eagerly; the widget-driving checks live under test/, driven headlessly
+# through Xvfb (see test/drive_shell.rb).
+$LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
+require "gnome_control_center/shell_model"
+require "gnome_control_center/system_info"
 
 RSpec.configure do |config|
   # Enable flags like --only-failures and --next-failure

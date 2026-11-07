@@ -23,20 +23,72 @@ GtkDriver.drive(GnomeControlCenter::Application.new, shots: "tmp/shots") do |d, 
     d.check("kernel row mentions Linux") { panel.kernel_row.subtitle.to_s.start_with?("Linux") }
   end
 
+  d.step("search toggle button opens the search bar") do
+    app.window.send(:search_button).active = true
+  end
+
+  d.step("search bar is now in search mode") do
+    d.check("search button toggled search mode on") { app.window.send(:search_bar).search_mode_enabled? }
+  end
+
   d.step("search filters the sidebar") do
     app.window.send(:search_entry).text = "about"
   end
 
   d.step("search view is active") do
     d.check("panel list switched to search view") { app.window.send(:panel_list).view == :search }
+    d.check("search listbox has the matching row") { app.window.send(:panel_list).send(:search_listbox).children.any? }
     d.shot("02-search")
   end
 
-  d.step("clearing search returns to main view") do
-    app.window.send(:search_entry).text = ""
+  d.step("search for something nobody has (empty state)") do
+    app.window.send(:search_entry).text = "zzz-no-such-panel-zzz"
+  end
+
+  d.step("search view shows no results") do
+    d.check("still on the search view") { app.window.send(:panel_list).view == :search }
+    d.check("no row matches a nonsense query") do
+      list = app.window.send(:panel_list).send(:search_listbox)
+      list.children.none?(&:child_visible?)
+    end
+    d.shot("03-search-empty")
+  end
+
+  d.step("activating the matching search row jumps back to it") do
+    app.window.send(:search_entry).text = "about"
+  end
+
+  d.step("search row activation switches view and keeps the panel") do
+    row = app.window.send(:panel_list).send(:search_listbox).children.first
+    row.activate
+    d.check("activating the search row returns to the main view") { app.window.send(:panel_list).view == :main }
+    d.check("about panel is still the active panel") { app.window.current_panel_id == "about" }
+  end
+
+  d.step("closing the search bar clears the query") do
+    app.window.send(:search_button).active = false
   end
 
   d.step("main view is active again") do
+    d.check("search bar left search mode") { !app.window.send(:search_bar).search_mode_enabled? }
     d.check("panel list switched back to main view") { app.window.send(:panel_list).view == :main }
+  end
+
+  d.step("activating the sidebar row re-fires the show-panel wiring") do
+    row = app.window.send(:panel_list).send(:main_listbox).children.first
+    row.activate
+    d.check("sidebar row activation keeps the about panel active") { app.window.current_panel_id == "about" }
+    d.check("content pane is showing") { app.window.send(:split_view).show_content? }
+  end
+
+  d.step("let the layout settle before the final screenshot") {}
+
+  d.step("final shot of the resettled shell") do
+    d.shot("04-sidebar-activate")
+  end
+
+  d.step("the shell registers exactly the panels it claims") do
+    d.check("only the about panel is registered") { GnomeControlCenter::PanelLoader.registrations.map(&:id) == ["about"] }
+    d.check("sidebar lists exactly one panel") { app.window.send(:panel_list).send(:main_listbox).children.length == 1 }
   end
 end
