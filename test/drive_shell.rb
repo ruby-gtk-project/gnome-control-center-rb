@@ -15,6 +15,26 @@ GtkDriver.drive(GnomeControlCenter::Application.new, shots: "tmp/shots") do |d, 
     d.shot("01-launch")
   end
 
+  # Application#build calls Log.init and ObjectStorage.initialize_storage
+  # before it does anything else. These checks prove the real boot path
+  # actually ran them, not just that the modules exist in isolation
+  # (spec/gnome_control_center/{log,object_storage}_spec.rb cover their
+  # logic display-free).
+  d.step("Application#build wired in Log and ObjectStorage on the real boot path") do
+    d.check("Log was initialized during boot") { GnomeControlCenter::Log.instance_variable_get(:@initialized) }
+    d.check("ObjectStorage was initialized during boot") do
+      GnomeControlCenter::ObjectStorage.instance_variable_get(:@initialized)
+    end
+    d.check("a second ObjectStorage.initialize_storage call refuses, as upstream's singleton would") do
+      begin
+        GnomeControlCenter::ObjectStorage.initialize_storage
+        false
+      rescue RuntimeError => e
+        e.message == "ObjectStorage already initialized"
+      end
+    end
+  end
+
   d.step("about panel shows real data") do
     panel = app.window.current_panel
     d.check("processor row is not empty") { !panel.processor_row.subtitle.to_s.empty? }
