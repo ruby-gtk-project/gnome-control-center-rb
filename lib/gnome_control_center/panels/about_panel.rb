@@ -18,14 +18,9 @@ module GnomeControlCenter
     # not get, rather than toggling row visibility as upstream does — this
     # port never hides a field because its value is empty.
     class AboutPanel < Panel
-      def initialize(window, subpage_tag: nil)
+      def initialize(window, parameters: [])
         @info = SystemInfo.new
-        super(
-          window,
-toolbar_view,
-"About",
-subpage_tag: subpage_tag
-)
+        super(window, toolbar_view, "About", parameters: parameters)
       end
 
       def toolbar_view

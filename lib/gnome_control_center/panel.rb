@@ -13,25 +13,35 @@ module GnomeControlCenter
   # Ported from upstream's shell/cc-panel.c / cc-panel.h. Upstream is an
   # abstract AdwNavigationPage with a GtkBuildable "subpage" child type (for
   # subpages declared in the panel's own .blp/.ui) and a "parameters"
-  # GVariant construct property the shell's D-Bus activation path feeds a
-  # target subpage tag into. This port has no GtkBuilder templates, so
-  # subpages are registered in Ruby (`add_subpage`, `add_static_subpage`)
-  # rather than declared as buildable children, and `parameters` becomes a
-  # plain constructor keyword carrying the initial subpage tag, if any.
+  # GVariant construct property the shell's D-Bus activation path feeds
+  # deep-link arguments into (an `av` — array of variants — whose first
+  # element, when it is a string, names the target subpage). This port has
+  # no GtkBuilder templates, so subpages are registered in Ruby
+  # (`add_subpage`, `add_static_subpage`) rather than declared as buildable
+  # children; `parameters` becomes a plain constructor keyword carrying that
+  # same array, already unwrapped from the GVariant into plain Ruby values
+  # by Window#activate_panel (see its comment for the unwrapping).
   class Panel < Adwaita::NavigationPage
-    def initialize(window, child, title, subpage_tag: nil)
+    def initialize(window, child, title, parameters: [])
       super(child, title)
       @window = window
+      @parameters = parameters
       @subpages = {}
       @static_subpages = {}
       @navigation_stack = [self]
       @single_page_mode = false
-      if subpage_tag
-        push_initial_subpage(subpage_tag)
+      if parameters.first.is_a?(String)
+        push_initial_subpage(parameters.first)
       end
     end
 
     attr_reader :window, :navigation_stack
+
+    # Upstream's PROP_PARAMETERS getter: the full deep-link argument array
+    # the shell activated this panel with (empty when activated plainly).
+    # A subclass whose upstream counterpart reads arguments past the
+    # subpage tag (e.g. a setting to highlight) reads them from here.
+    attr_reader :parameters
 
     # Upstream's cc_panel_get_cancellable: lazily created, one per panel.
     def cancellable = @cancellable ||= Gio::Cancellable.new

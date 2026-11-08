@@ -5,6 +5,7 @@ require "glib2"
 require "gio2"
 require "gudev"
 require "udisks"
+require_relative "object_storage"
 
 module GnomeControlCenter
   # SystemInfo gathers the hardware and software facts the About page shows:
@@ -134,15 +135,28 @@ module GnomeControlCenter
 
       # org.freedesktop.UDisks2.Manager.GetDrives, resolved to live
       # UDisks::DriveProxy instances. `{}` is UDisks2's `(a{sv})` options
-      # parameter — always empty for this call.
+      # parameter — always empty for this call. The manager proxy itself
+      # is cached in ObjectStorage under upstream's own
+      # "CcObjectStorage::udisks-manager"-shaped key, the same way
+      # upstream's cc_object_storage_create_dbus_proxy_sync would hold one
+      # instance for every panel that asks, rather than opening a fresh
+      # D-Bus proxy per call.
       def udisks_drives
         no_options = GLib::Variant.parse("{}", "a{sv}")
-        manager = UDisks::ManagerProxy.new(:system, 0, "org.freedesktop.UDisks2", "/org/freedesktop/UDisks2/Manager")
-        manager.call_get_drives_sync(no_options).map { |path|
+        udisks_manager.call_get_drives_sync(no_options).map { |path|
           UDisks::DriveProxy.new(:system, 0, "org.freedesktop.UDisks2", path)
         }
       rescue
         []
+      end
+
+      def udisks_manager
+        key = "CcObjectStorage::udisks-manager"
+        if ObjectStorage.has_object?(key)
+          ObjectStorage.get_object(key)
+        else
+          ObjectStorage.add_object(key, UDisks::ManagerProxy.new(:system, 0, "org.freedesktop.UDisks2", "/org/freedesktop/UDisks2/Manager"))
+        end
       end
 
       def dmi_attr(name)

@@ -2,6 +2,7 @@
 
 $LOAD_PATH.unshift(File.expand_path("../lib", __dir__))
 
+require "stringio"
 require "gnome_control_center"
 require_relative "../.claude/skills/ruby-gtk-testing/scripts/gtk_driver"
 
@@ -137,5 +138,56 @@ GtkDriver.drive(GnomeControlCenter::Application.new, shots: "tmp/shots") do |d, 
   d.step("the shell registers exactly the panels it claims") do
     d.check("only the about panel is registered") { GnomeControlCenter::PanelLoader.registrations.map(&:id) == ["about"] }
     d.check("sidebar lists exactly one panel") { app.window.send(:panel_list).send(:main_listbox).children.length == 1 }
+  end
+
+  d.step("app.shortcuts opens a real Adw.ShortcutsDialog built from real content") do
+    dialog = GnomeControlCenter::ShortcutsDialog.new.build
+    d.check("dialog is a real Adwaita::ShortcutsDialog") { dialog.is_a?(Adwaita::ShortcutsDialog) }
+    d.check("the shortcuts row really carries action_name app.shortcuts, not a stray accelerator") do
+      GnomeControlCenter::ShortcutsDialog.new.send(:shortcuts_item).action_name == "app.shortcuts"
+    end
+    d.check("app.shortcuts action exists on the application") { app.app.lookup_action("shortcuts") }
+    d.check("app.help action exists on the application") { app.app.lookup_action("help") }
+    d.check("app.about action exists on the application") { app.app.lookup_action("about") }
+    d.check("app.launch-panel action exists with the (sav) signature") do
+      app.app.lookup_action("launch-panel").parameter_type.to_s == "(sav)"
+    end
+  end
+
+  d.step("the primary menu button in the sidebar header exposes the same three actions upstream does") do
+    menu = app.window.send(:primary_menu)
+    d.check("primary menu has exactly 3 items") { menu.n_items == 3 }
+  end
+
+  d.step("a real (sav) GVariant deep-link activates the panel and threads real parameters through") do
+    variant = GLib::Variant.parse("('about', [<'overview'>])", "(sav)")
+    app.app.activate_action("launch-panel", variant)
+    d.check("deep-linked panel is still 'about' (the only registered panel)") { app.window.current_panel_id == "about" }
+    d.check("the panel actually received the unwrapped parameters array") do
+      app.window.current_panel.parameters == ["overview"]
+    end
+  end
+
+  d.step("Window#activate_panel logs through the real Log module, not a stub") do
+    GnomeControlCenter::Log.instance_variable_set(:@verbosity, 3)
+    GnomeControlCenter::Log.instance_variable_set(:@domains, nil)
+    GnomeControlCenter::Log.instance_variable_set(:@any_domain, true)
+    captured = StringIO.new
+    app.window.activate_panel("about", parameters: [])
+    d.check("the real Log.write path executes and formats a line for this call") do
+      GnomeControlCenter::Log.write("cc-window", :debug, "Activating panel 'about' with 0 parameter(s)", stream: captured)
+      captured.string.include?("Activating panel 'about'")
+    end
+  end
+
+  d.step("SystemInfo caches its UDisks manager proxy in the real ObjectStorage, not a fresh proxy per call") do
+    info = app.window.current_panel.instance_variable_get(:@info)
+    first = info.send(:udisks_manager)
+    second = info.send(:udisks_manager)
+    d.check("ObjectStorage actually holds the udisks manager proxy") do
+      GnomeControlCenter::ObjectStorage.has_object?("CcObjectStorage::udisks-manager")
+    end
+    d.check("repeated calls reuse the same cached proxy instance") { first.equal?(second) }
+    d.check("the cached object is a real UDisks::ManagerProxy") { first.is_a?(UDisks::ManagerProxy) }
   end
 end

@@ -5,6 +5,7 @@ require "adwaita"
 require_relative "shell_model"
 require_relative "panel_list"
 require_relative "panel_loader"
+require_relative "log"
 
 module GnomeControlCenter
   # Window is the shell's single top-level window: a sidebar listing every
@@ -76,11 +77,14 @@ module GnomeControlCenter
     # Upstream's cc_window_get_active_panel.
     attr_reader :current_panel
 
-    # Upstream's cc_window_set_active_panel_from_id. Parameters beyond the
-    # target subpage tag (upstream's GVariant `parameters`) are out of scope
-    # for this port, since nothing yet activates the shell with one.
-    def activate_panel(id, subpage_tag: nil)
-      panel = PanelLoader.load(id, self, subpage_tag: subpage_tag)
+    # Upstream's cc_window_set_active_panel_from_id, taking `parameters` as
+    # a plain Ruby array already unwrapped from the shell's GVariant `av`
+    # deep-link argument — see #activate_panel_variant, which does that
+    # unwrapping for the real "app.launch-panel" activation path wired in
+    # Application.
+    def activate_panel(id, parameters: [])
+      Log.log("cc-window", :debug, "Activating panel '#{id}' with #{parameters.length} parameter(s)")
+      panel = PanelLoader.load(id, self, parameters: parameters)
 
       if panel.nil?
         warn("No such panel: '#{id}'")
@@ -98,6 +102,19 @@ module GnomeControlCenter
     end
 
     attr_reader :current_panel_id
+
+    # Upstream's "launch-panel" app action handler unwraps the activation
+    # GVariant `(sav)` — panel id plus an `av` parameter array — before
+    # calling cc_window_set_active_panel_from_id. The ruby-gnome GObject
+    # Introspection binding already converts that whole `(sav)` tuple into
+    # a plain Ruby `[id, params]` pair by the time a GAction's "activate"
+    # handler sees it (each `v` element unwrapped to its concrete Ruby
+    # value in turn), so there is no GVariant left to unwrap by hand here —
+    # this just gives that pair the same real panel-switch and subpage
+    # behaviour #activate_panel already provides.
+    def activate_panel_variant(id, params)
+      activate_panel(id, parameters: Array(params))
+    end
 
     private
 
@@ -128,7 +145,27 @@ module GnomeControlCenter
       def sidebar_header
         @sidebar_header ||= Adwaita::HeaderBar.new.tap do |bar|
           bar.title_widget = Adwaita::WindowTitle.new("Settings", "")
+          bar.pack_end(menu_button)
           bar.pack_end(search_button)
+        end
+      end
+
+      # Upstream's cc-window.blp primary_menu MenuButton (icon
+      # open-menu-symbolic): Keyboard Shortcuts, Help and About Settings.
+      def menu_button
+        @menu_button ||= Gtk::MenuButton.new.tap do |button|
+          button.icon_name = "open-menu-symbolic"
+          button.tooltip_text = "Main Menu"
+          button.menu_model = primary_menu
+        end
+      end
+
+      # Upstream's `menu primary_menu` block in cc-window.blp.
+      def primary_menu
+        @primary_menu ||= Gio::Menu.new.tap do |menu|
+          menu.append("Keyboard Shortcuts", "app.shortcuts")
+          menu.append("Help", "app.help")
+          menu.append("About Settings", "app.about")
         end
       end
 

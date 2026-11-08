@@ -47,9 +47,11 @@ module GnomeControlCenter
 
     # Upstream's cc_panel_loader_load_panel: build the panel instance for
     # `id`, handing it the window as upstream's "window" construct property
-    # does.
-    def self.load(id, window, subpage_tag: nil)
-      registration_for(id)&.then { |reg| reg.panel_class.new(window, subpage_tag: subpage_tag) }
+    # does, and `parameters` as upstream's "parameters" construct property
+    # does (the shell's deep-link `av` arguments, already unwrapped to a
+    # plain Ruby array).
+    def self.load(id, window, parameters: [])
+      registration_for(id)&.then { |reg| reg.panel_class.new(window, parameters: parameters) }
     end
 
     # Feeds every registration into a ShellModel, upstream's
