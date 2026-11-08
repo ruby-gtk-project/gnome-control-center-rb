@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Upstream | `main` @ `a53c22ada` |
-| Port | `ruby` @ `f8acc1220` |
+| Port | `ruby` @ `b0f61703e` |
 | Upstream `po/POTFILES.in` entries | 302 |
 | Upstream `po/LINGUAS` | 112 languages |
 | Upstream msgids | not fully censused (see gap below); on the order of hundreds, drawn from 302 source files plus `.desktop.in`/metainfo/gschema strings per the skill |

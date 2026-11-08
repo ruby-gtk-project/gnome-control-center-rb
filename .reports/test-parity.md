@@ -3,11 +3,11 @@
 | | |
 |---|---|
 | Upstream | `main` @ `a53c22ada` |
-| Port | `ruby` @ `f8acc1220` |
+| Port | `ruby` @ `b0f61703e` |
 | Upstream tests (censused, `tests/`) | ≥ 15 test binaries/scripts, many data-driven (see below) |
 | Ported | 0 |
 | Gaps | all |
-| Test command found | `rake test` (via kettle), and a separate headless driver `test/drive_shell.rb` run with `nix develop --command xvfb-run -a ruby test/drive_shell.rb` |
+| Test command found | `rspec spec` (28 examples, plain RSpec — the gemspec declares `kettle-test`/`kettle-dev` as dev dependencies but they are not present in this nix devshell, so `spec_helper.rb` falls back and warns "kettle-test isn't installed; running with plain RSpec"), and a separate headless driver `test/drive_shell.rb` run with `nix develop --command xvfb-run -a ruby test/drive_shell.rb` (26 of 26 checks) |
 
 ## Upstream census (`git ls-tree -r --name-only origin/main | grep '^tests/'`)
 
@@ -41,20 +41,28 @@ tree at all**: see gap below.
 ## Port census (`spec/`, `test/`)
 
 ```
-spec/README.md        — documentation only
-spec/spec_helper.rb    — harness bootstrap, no spec files
-test/drive_shell.rb    — a drive script with 20 check(...) calls
+spec/README.md                                — documentation only
+spec/spec_helper.rb                            — harness bootstrap
+spec/gnome_control_center/log_spec.rb          — new this pass
+spec/gnome_control_center/object_storage_spec.rb — new this pass
+test/drive_shell.rb                            — a drive script, now 26 check(...) calls
 ```
 
-`find spec -name '*_spec.rb'` and `find test -name 'test_*.rb'` both return
-nothing. **There are zero RSpec example files and zero unit/integration
-tests ported from any of the upstream `.c`/`.py` test files above.** The
-only executable check in the repo is `test/drive_shell.rb`'s 20 UI-driver
-assertions, and every one of those exercises the port's own new shell code
-(window title, search, about-panel data) — none of them is a port of an
-upstream test, because none of the upstream `tests/` files covers the shell
-at all (upstream's shell has no `tests/` directory of its own; its coverage
-is the panels').
+`find spec -name '*_spec.rb'` now returns 2 files (28 examples total,
+confirmed by running `rspec spec` this session: "28 examples, 0 failures").
+**These are still zero RSpec examples ported from any upstream
+`.c`/`.py` test file** — `log_spec.rb` and `object_storage_spec.rb` test
+the port's own new `Log`/`ObjectStorage` Ruby classes against the
+behaviour described in `shell/cc-log.c`/`cc-object-storage.c`'s comments,
+which is a reasonable thing to do since upstream's `tests/` tree (censused
+below) has no file covering either one — the shell itself has no upstream
+test directory. So: real, passing, and correctly not claimed against any
+upstream test-file row in the table below. The only executable UI-driver
+check in the repo is `test/drive_shell.rb`'s now-26 assertions, same
+situation — shell/about/log/object-storage coverage, no upstream test file
+is a port of any upstream test, because none of the upstream `tests/`
+files covers the shell at all (upstream's shell has no `tests/` directory
+of its own; its coverage is the panels').
 
 ## Bijection
 
@@ -88,17 +96,26 @@ must get right once it does.
 
 ## Does the port's own suite run?
 
-Yes, mechanically: `test/drive_shell.rb` was run this session —
-`nix develop --command xvfb-run -a ruby test/drive_shell.rb` → "20 of 20
-checks passed / DRIVE OK". That result is real and reproducible. It is also
-the entire executed test surface of the port: no `rake test` / RSpec run
-was exercised in this audit beyond confirming `spec/` has no spec files to
-run, so "the suite runs" and "the suite has been run end to end on CI" are
-two different claims — only the first is established here. The 20/20 number
-in the task's runtime gate is this same file; it proves the shell+about
-slice works, and proves nothing about the other 23 panels or about any of
-the upstream `tests/` files, because none of them has a Ruby counterpart to
-run.
+Yes, mechanically, both of the port's two suites were run this session:
+
+- `nix develop --command xvfb-run -a ruby test/drive_shell.rb` → "26 of 26
+  checks passed / DRIVE OK".
+- `nix develop --command xvfb-run -a ruby -e 'require "rspec/core"; exit
+  RSpec::Core::Runner.run(["--format", "progress", "--require",
+  "spec_helper", "spec"])'` → "28 examples, 0 failures".
+
+Both results are real and reproducible, and both were re-run in this audit
+rather than taken on faith from an earlier report. This is also the entire
+executed test surface of the port: the 28 RSpec examples cover `Log` and
+`ObjectStorage` only (no spec file exists for `window.rb`, `panel_list.rb`,
+`about_panel.rb`, `system_info.rb`, `util.rb`, or `ui_util.rb` — confirmed,
+`find spec -name '*_spec.rb'` lists exactly the two files named above), so
+"the suite runs" and "the suite covers the port" remain two different
+claims — only the first is established for most of the port's own files.
+The 26/26 number in the task's runtime gate is `drive_shell.rb`; it proves
+the shell+about+log+object-storage slice boots and behaves as asserted, and
+proves nothing about the other 23 panels or about any of the upstream
+`tests/` files, because none of them has a Ruby counterpart to run.
 
 ## Rules check
 
@@ -110,6 +127,12 @@ run.
 
 ## Extra
 
-- `test/drive_shell.rb` — 20 checks driving window title, about-panel data
-  sourcing, search mode toggle/filter/empty-state/row-activation, sidebar
-  activation, and panel-registration count. All pass as of `f8acc1220`.
+- `test/drive_shell.rb` — 26 checks driving window title, about-panel data
+  sourcing (including the disk-capacity row's real UDisks call),
+  `Log`/`ObjectStorage` boot-wiring and singleton-guard behaviour, search
+  mode toggle/filter/empty-state/row-activation, sidebar activation, and
+  panel-registration count. All pass as of `b0f61703e`.
+- `spec/gnome_control_center/log_spec.rb`,
+  `spec/gnome_control_center/object_storage_spec.rb` — 28 RSpec examples
+  total, unit-level coverage of the two new shell-support modules. All
+  pass as of `b0f61703e`.

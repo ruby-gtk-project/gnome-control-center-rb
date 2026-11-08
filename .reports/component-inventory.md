@@ -466,8 +466,8 @@ on `ruby`.
 | Upstream file(s) | kind | proposed `lib/` path | exists |
 |---|---|---|---|
 | `shell/cc-application.c, shell/cc-application.h` | support | `lib/gnome_control_center/application.rb` | yes |
-| `shell/cc-log.c, shell/cc-log.h` | support | `lib/gnome_control_center/log.rb` | no |
-| `shell/cc-object-storage.c, shell/cc-object-storage.h` | support | `lib/gnome_control_center/object_storage.rb` | no |
+| `shell/cc-log.c, shell/cc-log.h` | support | `lib/gnome_control_center/log.rb` | yes (partial — see component-parity) |
+| `shell/cc-object-storage.c, shell/cc-object-storage.h` | support | `lib/gnome_control_center/object_storage.rb` | yes (boot-wired, no real caller yet — see component-parity) |
 | `shell/cc-panel-list.blp, shell/cc-panel-list.c, shell/cc-panel-list.h` | support | `lib/gnome_control_center/panel_list.rb` | yes |
 | `shell/cc-panel-loader.c, shell/cc-panel-loader.h` | support | `lib/gnome_control_center/panel_loader.rb` | yes |
 | `shell/cc-panel.blp, shell/cc-panel.c, shell/cc-panel.h` | support | `lib/gnome_control_center/panel.rb` | yes |
@@ -555,10 +555,14 @@ whichever pass does `translation-parity`, not attempted in this survey.
   files `panels/common/cc-ui-util.*` / `cc-util.*`
   (`lib/panels/common/ui_util.rb` / `util.rb`), and the two enum headers
   `panels/sharing/gsd-sharing-enums.h` / `panels/sound/cc-sound-enums.h`.
-- **shell/**: 9 components, 6 already in `lib/gnome_control_center/`
-  (`application`, `panel`, `panel_list`, `panel_loader`, `shell_model`,
-  `window`); `main.c` is covered by `exe/gnome-control-center`; `cc-log.c`,
-  `cc-object-storage.c` and `shortcuts-dialog.blp` are not yet ported.
+- **shell/**: 9 components, 8 already in `lib/gnome_control_center/`
+  (`application`, `log`, `object_storage`, `panel`, `panel_list`,
+  `panel_loader`, `shell_model`, `window`); `main.c` is covered by
+  `exe/gnome-control-center`; only `shortcuts-dialog.blp` is not yet ported.
+  "In `lib/`" is a file-existence count, not a behaviour-parity count —
+  `log.rb` and `object_storage.rb` exist and are called at boot
+  (`Log.init`, `ObjectStorage.initialize_storage`) but see
+  `component-parity.md` for what each actually does once called.
 - **global-shortcuts-provider/**: 2 components, 0 in `lib/`.
 - **search-provider/**: 2 components, 0 in `lib/`.
 - 1 GSettings schema not yet ported.
